@@ -1,0 +1,16 @@
+# ignore directories
+Papers/
+
+# ignore zipped files
+41588_2019_457_MOESM3_ESM.zip
+41588_2019_457_MOESM4_ESM.zip
+GSE139817_RAW.tar
+
+# ignore files and directories in
+ChIP-seq/fastq/HM/**
+ChIP-seq/fastqc/HM/**
+ChIP-seq/stat_bam/**
+ChIP-seq/multiqc/HM/**
+!ChIP-seq/multiqc/**/*.html
+ChIP-seq/mapping/STAR/**
+
