@@ -13,4 +13,4 @@ ChIP-seq/stat_bam/**
 ChIP-seq/multiqc/HM/**
 !ChIP-seq/multiqc/**/*.html
 ChIP-seq/mapping/STAR/**
-
+ChIP-seq/mapping/bowtie2/

@@ -1,111 +1,12 @@
-STAR --genomeDir /project/ngsvin/MappingIndices/STAR/hg19/ \
-> --readFilesIn ./fastq/HM/H3K4me3_HI-21.fq.gz \
-> --readFilesCommand gunzip -c \
-> --outSAMtype BAM SortedByCoordinate \
-> --outFileNamePrefix ./mapping/STAR/H3K4me3_HI-21_ \
-> --outTmpDir /scratch/local2/jieyidi/ \
-> --alignEndsType EndToEnd \
-> --alignIntronMax 1 \
-> --alignSJDBoverhangMin 999
-
-/project/ngsvin/bin/mapping/STAR/STAR_2.6.1d/bin/Linux_x86_64/STAR
-
-/project/ngsvin/bin/mapping/STAR/STAR_2.6.1d/bin/Linux_x86_64/STAR --genomeDir /project/ngsvin/MappingIndices/STAR/hg19/ --readFilesIn ./fastq/HM/H3K4me3_HI-21.fq.gz --readFilesCommand gunzip -c --outSAMtype BAM SortedByCoordinate --outFileNamePrefix ./mapping/STAR/H3K4me3_HI-21_ --outTmpDir /scratch/local2/jieyidi_STAR/ --alignEndsType EndToEnd --alignIntronMax 1 --alignSJDBoverhangMin 999
-
-
-
-
+# --- quality control
 fastqc ./fastq/HM/H3K4me3_HI-21.fq.gz -o ./fastqc/HM/
-
 
 (base) jieyidi@gnosiophobie:/project/NeuralNet/CRC/ChIP-seq>
 ls ./fastq/HM/*.gz | while read id; do (fastqc $id -o ./fastqc/HM/); done
 multiqc ./fastqc/HM/ -o ./multiqc/HM/
 
 
-star_version="/project/ngsvin/bin/mapping/STAR/STAR_2.6.1d/bin/Linux_x86_64/STAR"  # specify the version of star
-ls ./fastq/HM/*.gz | while read id;
-do
-	file=${id##*/}
-	sample=${file%%.*}
-	nohup STAR --runThreadN 10 \
-	--genomeDir /project/ngsvin/MappingIndices/STAR/hg19/ \
-	--readFilesIn ${id} \
-	--readFilesCommand zcat \
-	--alignEndsType EndToEnd \
-	--alignIntronMax 1 \
-	--outSAMtype BAM SortedByCoordinate \
-	--alignSJDBoverhangMin 999 \
-	--outTmpDir /scratch/local2/jieyidi_STARR \
-	--outFileNamePrefix ./mapping/STAR/${sample}_ \
-	> ./mapping/STAR_logs/${sample}.log &
-done
-
-
-
-H3K4me3_HI-21.fq.gz
-(base) jieyidi@gnosiophobie:/project/NeuralNet/CRC/ChIP-seq> /project/ngsvin/bin/mapping/STAR/STAR_2.6.1d/bin/Linux_x86_64/STAR --genomeDir /project/ngsvin/MappingIndices/STAR/hg19/ --readFilesIn ./fastq/HM/H3K4me3_HI-21.fq.gz --readFilesCommand gunzip -c --outSAMtype BAM SortedByCoordinate --outFileNamePrefix ./mapping/STAR/H3K4me3_HI-21_ --outTmpDir /scratch/local2/jieyidi_STAR/ --alignEndsType EndToEnd --alignIntronMax 1 --alignSJDBoverhangMin 999
-
-H3K4me3_HI-25.fq.gz
-nohup ${star_version} --runThreadN 10 --genomeDir /project/ngsvin/MappingIndices/STAR/hg19/ --readFilesIn ./fastq/HM/H3K4me3_HI-25.fq.gz --readFilesCommand gunzip -c --outSAMtype BAM SortedByCoordinate --outFileNamePrefix ./mapping/STAR/H3K4me3_HI-25_ --outTmpDir /scratch/local2/jieyi_STAR/ --alignEndsType EndToEnd --alignIntronMax 1 --alignSJDBoverhangMin 999 > ./mapping/STAR_logs/H3K4me3_HI-25.log &
-
-H3K4me3_HI-32.fq.gz
-nohup ${star_version} --runThreadN 10 --genomeDir /project/ngsvin/MappingIndices/STAR/hg19/ --readFilesIn ./fastq/HM/H3K4me3_HI-32.fq.gz --readFilesCommand gunzip -c --outSAMtype BAM SortedByCoordinate --outFileNamePrefix ./mapping/STAR/H3K4me3_HI-32_ --outTmpDir /scratch/local2/jieyi_STAR/ --alignEndsType EndToEnd --alignIntronMax 1 --alignSJDBoverhangMin 999 > ./mapping/STAR_logs/H3K4me3_HI-32.log &
-
-H3K27ac_HI-32.fq.gz
-nohup ${star_version} --runThreadN 10 --genomeDir /project/ngsvin/MappingIndices/STAR/hg19/ --readFilesIn ./fastq/HM/H3K27ac_HI-32.fq.gz --readFilesCommand gunzip -c --outSAMtype BAM SortedByCoordinate --outFileNamePrefix ./mapping/STAR/H3K27ac_HI-32_ --outTmpDir /scratch/local2/jieyi_STAR/ --alignEndsType EndToEnd --alignIntronMax 1 --alignSJDBoverhangMin 999 > ./mapping/STAR_logs/H3K27ac_HI-32.log &
-
-H3K27ac_HI-45.fq.gz
-nohup ${star_version} --runThreadN 10 --genomeDir /project/ngsvin/MappingIndices/STAR/hg19/ --readFilesIn ./fastq/HM/H3K27ac_HI-45.fq.gz --readFilesCommand gunzip -c --outSAMtype BAM SortedByCoordinate --outFileNamePrefix ./mapping/STAR/H3K27ac_HI-45_ --outTmpDir /scratch/local2/jieyi_STAR/ --alignEndsType EndToEnd --alignIntronMax 1 --alignSJDBoverhangMin 999 > ./mapping/STAR_logs/H3K27ac_HI-45.log &
-
-H3K4me1_HI-21.fq.gz
-nohup ${star_version} --runThreadN 10 --genomeDir /project/ngsvin/MappingIndices/STAR/hg19/ --readFilesIn ./fastq/HM/H3K4me1_HI-21.fq.gz --readFilesCommand gunzip -c --outSAMtype BAM SortedByCoordinate --outFileNamePrefix ./mapping/STAR/H3K4me1_HI-21_ --outTmpDir /scratch/local2/jieyi_STAR/ --alignEndsType EndToEnd --alignIntronMax 1 --alignSJDBoverhangMin 999 > ./mapping/STAR_logs/H3K4me1_HI-21.log &
-
-
-# with nohup
-star_version="/project/ngsvin/bin/mapping/STAR/STAR_2.6.1d/bin/Linux_x86_64/STAR"  # specify the version of star
-ls -th fastq/HM/*.gz | while read id;  # head -n 2 |
-do
-	file=${id##*/}  # select the part after the last slash
-	# e.g. fastq/HM/H3K4me1_HI-21.fq.gz -> H3K4me1_HI-21.fq.gz
-	sample=${file%%.*}  # select the part before the first dot
-	# e.g. H3K4me1_HI-21.fq.gz -> H3K4me1_HI-21
-	nohup ${star_version} --runThreadN 10 \
-	--genomeDir /project/ngsvin/MappingIndices/STAR/hg19/ \
-	--readFilesIn ${id} \
-	--readFilesCommand zcat \  # for unzip the .gz files
-	--alignEndsType EndToEnd \
-	--alignIntronMax 1 \
-	--outSAMtype BAM SortedByCoordinate \
-	--alignSJDBoverhangMin 999 \
-	--outTmpDir /scratch/local2/jieyidi_STAR/${sample} \
-	--outFileNamePrefix ./mapping/STAR/${sample}_ \
-	> ./mapping/STAR_logs/${sample}.log &
-done
-
-
-# without nohup &
-star_version="/project/ngsvin/bin/mapping/STAR/STAR_2.6.1d/bin/Linux_x86_64/STAR"  # specify the version of star
-ls -th fastq/HM/*.gz | while read id;  # head -n 2 |
-do
-	file=${id##*/}  # select the part after the last slash
-	# e.g. fastq/HM/H3K4me1_HI-21.fq.gz -> H3K4me1_HI-21.fq.gz
-	sample=${file%%.*}  # select the part before the first dot
-	# e.g. H3K4me1_HI-21.fq.gz -> H3K4me1_HI-21
-	${star_version} --runThreadN 10 \
-	--genomeDir /project/ngsvin/MappingIndices/STAR/hg19/ \
-	--readFilesIn ${id} \
-	--readFilesCommand zcat \  # for unzip the .gz files
-	--alignEndsType EndToEnd \
-	--alignIntronMax 1 \
-	--outSAMtype BAM SortedByCoordinate \
-	--alignSJDBoverhangMin 999 \
-	--outTmpDir /scratch/local2/jieyidi_STAR \
-	--outFileNamePrefix ./mapping/STAR_test/${sample}_ \
-	> ./mapping/STAR_logs_test/${sample}.log
-done
-
-
+# --- mapping ---
 # loop: without nohup &, setting from the paper, define the file name
 star_version="/project/ngsvin/bin/mapping/STAR/STAR_2.6.1d/bin/Linux_x86_64/STAR"
 ls ./fastq/HM/*.gz | while read id;
@@ -149,8 +50,32 @@ ${star_version} --runThreadN 10 \
 > ./mapping/STAR_test/H3K27ac_HI-45.bam
 
 
+# --- sort ---
+ls ./mapping/STAR/unsorted_bam/*.bam | while read id;
+do
+	sample=$(basename $id)
+	# sample=$(basename $id ".bam")
+	samtools sort -@ 10 $id -o ./mapping/STAR/sorted_bam/$sample
+done
 
+# --- build index ---
+ls ./mapping/STAR/sorted_bam/*.bam | while read id;
+do
+	samtools index -@ 10 $id
+done
+
+# --- remove duplicates ---
+tmp_dir="/scratch/local2/jieyidi/"
+ls ./mapping/STAR/sorted_bam/*.bam | while read id;
+do
+	sambamba markdup -r -t 10 --overflow-list-size 600000 --tmpdir $tmp_dir $id ./mapping/STAR/rmdup_bam/$(basename $id)
+done
 
 
 # bam file qc
 ls -tr ./mapping/STAR/*.bam | while read id; do (nohup samtools flagstat -@)
+
+
+
+wget http://hgdownload.cse.ucsc.edu/goldenpath/hg19/bigZips/latest/hg19.fa.gz
+gunzip -c hg19.fa.gz > hg19.fa
