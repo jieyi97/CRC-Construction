@@ -1,13 +1,17 @@
-# --- quality control
+# directory: (base) jieyidi@gnosiophobie:/project/NeuralNet/CRC/ChIP-seq>
+
+# --- STAR mapping ---
+
+# quality control
+## for single fq file
 fastqc ./fastq/HM/H3K4me3_HI-21.fq.gz -o ./fastqc/HM/
 
-(base) jieyidi@gnosiophobie:/project/NeuralNet/CRC/ChIP-seq>
+## qc in a loop
 ls ./fastq/HM/*.gz | while read id; do (fastqc $id -o ./fastqc/HM/); done
 multiqc ./fastqc/HM/ -o ./multiqc/HM/
 
-
-# --- mapping ---
-# loop: without nohup &, setting from the paper, define the file name
+# mapping
+## loop: without nohup &, setting from the paper, define the file name
 star_version="/project/ngsvin/bin/mapping/STAR/STAR_2.6.1d/bin/Linux_x86_64/STAR"
 ls ./fastq/HM/*.gz | while read id;
 do
@@ -32,7 +36,7 @@ do
 	> ./mapping/STAR/unsorted_bam/${sample}.bam
 done
 
-# for single file: without nohup &, setting from the paper, define the file name
+## for single file: without nohup &, setting from the paper, define the file name
 ${star_version} --runThreadN 10 \
 --genomeDir /project/ngsvin/MappingIndices/STAR/hg19 \
 --readFilesIn ./fastq/HM/H3K27ac_HI-45.fq.gz \
@@ -50,7 +54,34 @@ ${star_version} --runThreadN 10 \
 > ./mapping/STAR_test/H3K27ac_HI-45.bam
 
 
-# --- sort ---
+${star_version} --runThreadN 10 \
+--genomeDir /project/ngsvin/MappingIndices/STAR/hg19 \
+--readFilesIn ./fastq/HM/H3K27ac_HI-45.fq.gz \
+--readFilesCommand zcat \
+--alignEndsType EndToEnd \
+--alignIntronMax 1 \
+--alignSJDBoverhangMin 999 \
+--outTmpDir /scratch/local2/jieyidi/STAR \
+--outSAMtype BAM Unsorted \
+--outStd BAM_Unsorted \
+--outSAMmultNmax 1 \
+--outFilterMultimapNmax 1 \
+--outFilterMismatchNmax 1 \
+--outFileNamePrefix ./mapping/STAR_logs_test/H3K27ac_HI-45_ \
+> ./mapping/STAR_test/H3K27ac_HI-45.bam
+
+
+
+
+# check MAPQ 
+samtools view ./mapping/STAR/rmdup_bam/H3K27ac_HI-32.bam | cut -f 5 | sort -n | uniq -c
+## 255 = unique mapping
+## 3 = mapping to 2 locations in the target
+## 2 =  mapping to 3 locations
+## 1 = mapping to 4-9 locations
+## 0 = mapping to 10 or more locations
+
+# sort
 ls ./mapping/STAR/unsorted_bam/*.bam | while read id;
 do
 	sample=$(basename $id)
@@ -58,24 +89,63 @@ do
 	samtools sort -@ 10 $id -o ./mapping/STAR/sorted_bam/$sample
 done
 
-# --- build index ---
+# build bam index
 ls ./mapping/STAR/sorted_bam/*.bam | while read id;
 do
 	samtools index -@ 10 $id
 done
 
-# --- remove duplicates ---
+# remove duplicates
 tmp_dir="/scratch/local2/jieyidi/"
 ls ./mapping/STAR/sorted_bam/*.bam | while read id;
 do
 	sambamba markdup -r -t 10 --overflow-list-size 600000 --tmpdir $tmp_dir $id ./mapping/STAR/rmdup_bam/$(basename $id)
 done
 
+# 
 
 # bam file qc
 ls -tr ./mapping/STAR/*.bam | while read id; do (nohup samtools flagstat -@)
 
 
 
+
+# --- bowtie2 ---
+# https://hbctraining.github.io/Intro-to-ChIPseq/lessons/03_align_and_filtering.html
+cd /project/NeuralNet/CRC/ChIP-seq/mapping/bowtie2
+# get the reference genome
 wget http://hgdownload.cse.ucsc.edu/goldenpath/hg19/bigZips/latest/hg19.fa.gz
+
+# unzip the file
 gunzip -c hg19.fa.gz > hg19.fa
+
+# remove the zipped file
+rm hg19.fa.gz
+
+# build bowtie2 index
+## using 10 threads and it takes 25 min or so
+bowtie2-build hg19.fa hg19
+
+# mapping
+index="/project/NeuralNet/CRC/ChIP-seq/mapping/bowtie2/hg19"
+bowtie2 -q -p 10 -x $index/hg19 -U ../../fastq/HM/H3K27ac_HI-32.fq.gz -N 1 -S ./H3K27ac_HI-32.sam 2>bowtie2.log
+
+## -q: fastq files
+## -p 10: number of processors
+## -x /path/to/index/
+## -U /path/to/fastq/file for single-end reads
+## -N 1: allow maximum 1 mismatch
+## -S /path/to/output/sam/file
+
+# sam2bam
+samtools view -@ 10 -hbS H3K27ac_HI-32.sam > H3K27ac_HI-32.unsorted.bam
+rm H3K27ac_HI-32.sam
+
+# sort
+sambamba sort -t 10 -o H3K27ac_HI-32.sorted.bam H3K27ac_HI-32.unsorted.bam
+
+## -t 10: number of threads
+## -o /path/to/output/file
+
+# unique mapping & remove duplicates
+sambamba view -t 10 -h -f bam -F "[XS] == null and not unmapped and not duplicate" H3K27ac_HI-32.sorted.bam > H3K27ac_HI-32.bam
