@@ -149,3 +149,16 @@ sambamba sort -t 10 -o H3K27ac_HI-32.sorted.bam H3K27ac_HI-32.unsorted.bam
 
 # unique mapping & remove duplicates
 sambamba view -t 10 -h -f bam -F "[XS] == null and not unmapped and not duplicate" H3K27ac_HI-32.sorted.bam > H3K27ac_HI-32.bam
+
+
+# --- CRUPwrapper.pl ---
+cd /project/NeuralNet/CRC/ChIP-seq/mapping/STAR/rmdup_bam
+CRUPwrapper="/project/ngsvin/bin/CRUP/CRUPwrapper.pl"
+
+$CRUPwrapper -threads 10 \
+-bam "H3K*32.bam" \
+-pattern "(HI.\d+)" \
+-label islets \
+-out /project/NeuralNet/CRC/ChIP-seq/crup \
+-tmp /project/NeuralNet/CRC/ChIP-seq/crup/CRUPtmp \
+-test

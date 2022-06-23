@@ -13,4 +13,8 @@ ChIP-seq/stat_bam/**
 ChIP-seq/multiqc/HM/**
 !ChIP-seq/multiqc/**/*.html
 ChIP-seq/mapping/STAR/**
+!ChIP-seq/mapping/STAR/regex_test.ipynb
 ChIP-seq/mapping/bowtie2/
+ChIP-seq/crup/
+
+
