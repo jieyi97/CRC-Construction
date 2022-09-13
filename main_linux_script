@@ -1,0 +1,552 @@
+# directory: (base) jieyidi@gnosiophobie:/project/NeuralNet/CRC/ChIP-seq>
+
+# --- STAR mapping ---
+
+# quality control
+## for single fq file
+fastqc ./fastq/HM/H3K4me3_HI-21.fq.gz -o ./fastqc/HM/
+
+## qc in a loop
+ls ./fastq/HM/*.gz | while read id; do (fastqc $id -o ./fastqc/HM/); done
+multiqc ./fastqc/HM/ -o ./multiqc/HM/
+
+# mapping
+## loop: without nohup &, setting from the paper, define the file name
+star_version="/project/ngsvin/bin/mapping/STAR/STAR_2.6.1d/bin/Linux_x86_64/STAR"
+ls ./fastq/HM/*.gz | while read id;
+do
+	file=${id##*/}  # select the part after the last slash
+	# e.g. fastq/HM/H3K4me1_HI-21.fq.gz -> H3K4me1_HI-21.fq.gz
+	sample=${file%%.*}  # select the part before the first dot
+	# e.g. H3K4me1_HI-21.fq.gz -> H3K4me1_HI-21
+	${star_version} --runThreadN 10 \
+	--genomeDir /project/ngsvin/MappingIndices/STAR/hg19 \
+	--readFilesIn ${id} \
+	--readFilesCommand zcat \
+	--alignEndsType EndToEnd \
+	--alignIntronMax 1 \
+	--alignSJDBoverhangMin 999 \
+	--outTmpDir /scratch/local2/jieyidi/STAR \
+	--outSAMtype BAM Unsorted \
+	--outStd BAM_Unsorted \
+	--outSAMmultNmax 1 \
+	--outFilterMultimapNmax 1 \
+	--outFilterMismatchNmax 1 \
+	--outFileNamePrefix ./mapping/STAR/unsorted_bam_logs/${sample}_ \
+	> ./mapping/STAR/unsorted_bam/${sample}.bam
+done
+
+## for single file: without nohup &, setting from the paper, define the file name
+${star_version} --runThreadN 10 \
+--genomeDir /project/ngsvin/MappingIndices/STAR/hg19 \
+--readFilesIn ./fastq/HM/H3K27ac_HI-45.fq.gz \
+--readFilesCommand zcat \
+--alignEndsType EndToEnd \
+--alignIntronMax 1 \
+--alignSJDBoverhangMin 999 \
+--outTmpDir /scratch/local2/jieyidi/STAR \
+--outSAMtype BAM Unsorted \
+--outStd BAM_Unsorted \
+--outSAMmultNmax 1 \
+--outFilterMultimapNmax 1 \
+--outFilterMismatchNmax 1 \
+--outFileNamePrefix ./mapping/STAR_logs_test/H3K27ac_HI-45_ \
+> ./mapping/STAR_test/H3K27ac_HI-45.bam
+
+
+${star_version} --runThreadN 10 \
+--genomeDir /project/ngsvin/MappingIndices/STAR/hg19 \
+--readFilesIn ./fastq/HM/H3K27ac_HI-45.fq.gz \
+--readFilesCommand zcat \
+--alignEndsType EndToEnd \
+--alignIntronMax 1 \
+--alignSJDBoverhangMin 999 \
+--outTmpDir /scratch/local2/jieyidi/STAR \
+--outSAMtype BAM Unsorted \
+--outStd BAM_Unsorted \
+--outSAMmultNmax 1 \
+--outFilterMultimapNmax 1 \
+--outFilterMismatchNmax 1 \
+--outFileNamePrefix ./mapping/STAR_logs_test/H3K27ac_HI-45_ \
+> ./mapping/STAR_test/H3K27ac_HI-45.bam
+
+
+
+
+
+# check MAPQ 
+samtools view ./mapping/STAR/rmdup_bam/H3K27ac_HI-32.bam | cut -f 5 | sort -n | uniq -c
+## 255 = unique mapping
+## 3 = mapping to 2 locations in the target
+## 2 =  mapping to 3 locations
+## 1 = mapping to 4-9 locations
+## 0 = mapping to 10 or more locations
+
+# sort
+ls ./mapping/STAR/unsorted_bam/*.bam | while read id;
+do
+	sample=$(basename $id)
+	# sample=$(basename $id ".bam")
+	samtools sort -@ 10 $id -o ./mapping/STAR/sorted_bam/$sample
+done
+
+# build bam index
+ls ./mapping/STAR/sorted_bam/*.bam | while read id;
+do
+	samtools index -@ 10 $id
+done
+
+# remove duplicates
+tmp_dir="/scratch/local2/jieyidi/"
+ls ./mapping/STAR/sorted_bam/*.bam | while read id;
+do
+	sambamba markdup -r -t 10 --overflow-list-size 600000 --tmpdir $tmp_dir $id ./mapping/STAR/rmdup_bam/$(basename $id)
+done
+
+# 
+
+# bam file qc
+ls -tr ./mapping/STAR/*.bam | while read id; do (nohup samtools flagstat -@)
+
+
+
+
+# --- bowtie2 ---
+# https://hbctraining.github.io/Intro-to-ChIPseq/lessons/03_align_and_filtering.html
+cd /project/NeuralNet/CRC/ChIP-seq/mapping/bowtie2
+# get the reference genome
+wget http://hgdownload.cse.ucsc.edu/goldenpath/hg19/bigZips/latest/hg19.fa.gz
+
+# unzip the file
+gunzip -c hg19.fa.gz > hg19.fa
+
+# remove the zipped file
+rm hg19.fa.gz
+
+# build bowtie2 index
+## using 10 threads and it takes 25 min or so
+bowtie2-build hg19.fa hg19
+
+# mapping
+index="/project/NeuralNet/CRC/ChIP-seq/mapping/bowtie2/hg19"
+bowtie2 -q -p 10 -x $index/hg19 -U ../../fastq/HM/H3K27ac_HI-32.fq.gz -N 1 -S ./H3K27ac_HI-32.sam 2>bowtie2.log
+
+## -q: fastq files
+## -p 10: number of processors
+## -x /path/to/index/
+## -U /path/to/fastq/file for single-end reads
+## -N 1: allow maximum 1 mismatch
+## -S /path/to/output/sam/file
+
+# sam2bam
+samtools view -@ 10 -hbS H3K27ac_HI-32.sam > H3K27ac_HI-32.unsorted.bam
+rm H3K27ac_HI-32.sam
+
+# sort
+sambamba sort -t 10 -o H3K27ac_HI-32.sorted.bam H3K27ac_HI-32.unsorted.bam
+
+## -t 10: number of threads
+## -o /path/to/output/file
+
+# unique mapping & remove duplicates
+sambamba view -t 10 -h -f bam -F "[XS] == null and not unmapped and not duplicate" H3K27ac_HI-32.sorted.bam > H3K27ac_HI-32.bam
+
+
+# --- CRUPwrapper.pl ---
+cd /project/NeuralNet/CRC/ChIP-seq/mapping/STAR/rmdup_bam
+CRUPwrapper="/project/ngsvin/bin/CRUP/CRUPwrapper.pl"
+
+# CRUP: sample 32
+$CRUPwrapper -threads 10 \
+-bam "H3K*32.bam" \
+-pattern "(HI.\d+)" \
+-label islets \
+-out /project/NeuralNet/CRC/ChIP-seq/crup \
+-tmp /project/NeuralNet/CRC/ChIP-seq/crup/CRUPtmp \
+-test
+
+# merge samples by modifications
+cd /project/NeuralNet/CRC/ChIP-seq/mapping/STAR/rmdup_bam
+samtools merge -@ 10 -o H3K4me1.merged.bam H3K4me1*.bam
+samtools merge -@ 10 -o H3K4me3.merged.bam H3K4me3*.bam
+samtools merge -@ 10 -o H3K27ac.merged.bam H3K27*.bam
+
+samtools merge -@ 10 -o H3K4me1.ex32.merged.bam H3K4me1_HI-21.bam H3K4me1_HI-25.bam
+samtools merge -@ 10 -o H3K4me3.ex32.merged.bam H3K4me3_HI-21.bam H3K4me3_HI-25.bam
+
+
+# build index
+samtools index -@ 10 H3K4me1.merged.bam
+samtools index -@ 10 H3K4me3.merged.bam
+samtools index -@ 10 H3K27ac.merged.bam
+
+samtools index -@ 10 H3K4me1.ex32.merged.bam
+samtools index -@ 10 H3K4me3.ex32.merged.bam
+
+# CRUP: merged samples
+$CRUPwrapper -threads 10 \
+-bam "*.merged.bam" \
+-pattern "(merged)" \
+-label islets \
+-out /project/NeuralNet/CRC/ChIP-seq/crup \
+-tmp /project/NeuralNet/CRC/ChIP-seq/crup/CRUPtmp \
+-test
+## error resolved after I built indices for merged bam files.
+
+
+# --- bamCompare ---
+conda activate genetics
+cd /project/NeuralNet/CRC/ChIP-seq/mapping/STAR/rmdup_bam
+
+multiBamSummary bins -p 10 --smartLabels \
+--bamfiles *merged.bam *32.bam \
+-o readCounts.npz \
+--outRawCounts readCounts.tab
+
+plotCorrelation -in readCounts.npz \
+--corMethod spearman \
+--skipZeros \
+--plotTitle "Spearman Correlation of Read Counts" \
+--whatToPlot heatmap \
+--colorMap RdYlBu \
+--plotNumbers \
+-o SpearmanCorr_readCounts.pdf \
+--outFileCorMatrix SpearmanCorr_readCounts.tab
+
+plotCorrelation -in readCounts.npz \
+--corMethod pearson \
+--skipZeros \
+--plotTitle "pearson Correlation of Read Counts" \
+--whatToPlot heatmap \
+--colorMap RdYlBu \
+--plotNumbers \
+-o PearsonCorr_readCounts.pdf \
+--outFileCorMatrix PearsonCorr_readCounts.tab
+
+
+# comparison without sample 32
+multiBamSummary bins -p 10 --smartLabels \
+--bamfiles *ex32*.bam *45.bam *32.bam \
+-o ../bamCompare/readCounts.ex32.npz \
+--outRawCounts ../bamCompare/readCounts.ex32.tab
+
+cd /project/NeuralNet/CRC/ChIP-seq/mapping/STAR/bamCompare
+plotCorrelation -in readCounts.ex32.npz \
+--corMethod spearman \
+--skipZeros \
+--plotTitle "Spearman Correlation of Read Counts (excluding sample 32)" \
+--whatToPlot heatmap \
+--colorMap RdYlBu \
+--plotNumbers \
+-o SpearmanCorr_readCounts.ex32.pdf \
+--outFileCorMatrix SpearmanCorr_readCounts.ex32.tab
+
+# comparison before merge
+multiBamSummary bins -p 10 --smartLabels \
+--bamfiles H3K27ac_*.bam H3K4me1_*.bam H3K4me3_*.bam \
+-o ../bamCompare/readCounts.b4.npz \
+--outRawCounts ../bamCompare/readCounts.b4.tab
+
+cd /project/NeuralNet/CRC/ChIP-seq/mapping/STAR/bamCompare
+plotCorrelation -in readCounts.b4.npz \
+--corMethod spearman \
+--skipZeros \
+--plotTitle "Spearman Correlation of Read Counts (before merging)" \
+--whatToPlot heatmap \
+--colorMap RdYlBu \
+--plotNumbers \
+-o SpearmanCorr_readCounts.b4.pdf \
+--outFileCorMatrix SpearmanCorr_readCounts.b4.tab
+
+## using RPKM bam2bw
+cd /project/NeuralNet/CRC/ChIP-seq/mapping/STAR/rmdup_bam
+bamCoverage -p 10 \
+-b H3K27ac_HI-32.bam \
+-o H3K27ac_HI-32.bw \
+--binSize 25 \
+--normalizeUsing RPKM \
+--centerReads \
+--smoothLength 50 2> ../logs/H3K27ac_HI-32_bamCoverage.log
+
+
+ls *HI*.bam | tail -7 | while read id;
+do
+	sample=$(basename $id ".bam")
+	bamCoverage -p 10 -b $id -o ${sample}.bw --binSize 25 --normalizeUsing RPKM --centerReads --smoothLength 50 2> ../logs/${sample}_bamCoverage.log
+done
+
+
+
+# --- bedTools ---
+# bedTools computing overlapping regions
+## preparation
+(base) jieyidi@funfair:/project/NeuralNet/CRC/Papers/EnhancerHub_PubMed31253982> cut -f 1 islet_enhancer_hubs.bed | cut -f 1 -d ":" | cut -d "r" -f 2 > a.bed  # chr number
+cut -f 1 islet_enhancer_hubs.bed | cut -f 2 -d ":" | cut -d "-" -f 1 | paste -d "\t" a.bed - > b.bed  # start position
+cut -f 1 islet_enhancer_hubs.bed | cut -f 2 -d ":" | cut -d "-" -f 2 | paste -d "\t" b.bed - > c.bed  # end position
+sed "1d" c.bed > islet.enhHubs.bed
+
+
+## enhancer location predicted by CRUP
+crupEnh="/project/NeuralNet/CRC/crup/islets.merged.CRUP.clusterEnh.bed"  # 11341
+# crupEnh="/project/NeuralNet/CRC/crup/islets.HI-32.CRUP.clusterEnh.bed"  # 11422
+
+## enhancer hubs from Ferrer 2019
+hubs="/project/NeuralNet/CRC/Papers/EnhancerHub_PubMed31253982/islet.enhHubs.bed"
+# hubs="/project/NeuralNet/CRC/Papers/EnhancerHub_PubMed31253982/islet_enhancer_hubs.bed"  # 1318
+
+## super enhancer from Ferrer 2019
+sed "s/chr//" islet_super_enhancers.bed > islet.SE.bed
+SE="/project/NeuralNet/CRC/Papers/EnhancerHub_PubMed31253982/islet.se.bed"  # 770
+# SE="/project/NeuralNet/CRC/Papers/EnhancerHub_PubMed31253982/islet_super_enhancers.bed"  # 770
+
+## enhancer clusters from Ferrer 2014 (source data to supplementary Fig. 5 / 6)
+sed -i "s/chr//" islet.enhClusters.bed
+clusters="/project/NeuralNet/CRC/Papers/EnhancerHub_PubMed31253982/islet.enhClusters.bed"  # 3677
+# sed -i "s/chr//" islet.enhClusters.TF.bed
+# clusters="/project/NeuralNet/CRC/Papers/EnhancerHub_PubMed31253982/islet.enhClusters.TF.bed"  # 1813
+
+## islets.merged.CRUP.clusterEnh.bed
+## crup (11,341) vs enhancer hubs (1,318)
+bedtools intersect -a $crupEnh -b $hubs -wa -u | wc -l  # 5989
+bedtools intersect -a $hubs -b $crupEnh -wa -u | wc -l  # 1314
+# >= 50% overlap
+bedtools intersect -a $crupEnh -b $hubs -wa -u -f 0.5 | wc -l  # 5824
+bedtools intersect -a $hubs -b $crupEnh -wa -u -f 0.5 | wc -l  # 42
+
+## crup (11,341) vs super enhancers (770)
+bedtools intersect -a $crupEnh -b $SE -wa -u | wc -l  # 836
+bedtools intersect -a $SE -b $crupEnh -wa -u | wc -l  # 770
+# >= 50% overlap
+bedtools intersect -a $crupEnh -b $SE -wa -u -f 0.5 | wc -l  # 688
+bedtools intersect -a $SE -b $crupEnh -wa -u -f 0.5 | wc -l  # 688
+
+## crup (11,341) vs enhancer clusters (3,677)
+bedtools intersect -a $crupEnh -b $clusters -wa -u | wc -l  # 1258
+bedtools intersect -a $clusters -b $crupEnh -wa -u | wc -l  # 1091
+# >= 50% overlap
+bedtools intersect -a $crupEnh -b $clusters -wa -u -f 0.5 | wc -l  # 785
+bedtools intersect -a $clusters -b $crupEnh -wa -u -f 0.5 | wc -l  # 324
+
+## crup (11,341) vs enhancer clusters bound by islet TF (1,813)
+bedtools intersect -a $crupEnh -b $clusters -wa -u | wc -l  # 697
+bedtools intersect -a $clusters -b $crupEnh -wa -u | wc -l  # 579
+# >= 50% overlap
+bedtools intersect -a $crupEnh -b $clusters -wa -u -f 0.5 | wc -l  # 464
+bedtools intersect -a $clusters -b $crupEnh -wa -u -f 0.5 | wc -l  # 150
+
+
+
+
+
+
+
+## sed examples
+cd /project/NeuralNet/CRC/Papers/EnhancerHub_PubMed31253982
+$ cat f.bed
+chr1	10	20
+chr1	22	28
+chr1	30	40
+chr2	15	22
+$ sed "s/chr//" f.bed  # delete chr
+1	10	20
+1	22	28
+1	30	40
+2	15	22
+$ sed "s/chr//" f.bed | sed "s/\([0-9XY]\)/chr\1/"  # add chr [0-9XY] => \w
+chr1	10	20
+chr1	22	28
+chr1	30	40
+chr2	15	22
+# sed "s/.*[0-9XY]/chr/"  # match the whole string of "chr1", "chrX"
+
+$ sed -n "6,10p" file_name  # show 6-10 rows
+
+
+
+# bedtools fisher
+## sort chromsize file
+wget --timestamping 'ftp://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/hg19.chrom.sizes' -O hg19.chrom.sizes
+sed -i "s/chr//" hg19.chrom.sizes  # 1
+sed -i '25,90d' hg19.chrom.sizes  # delete lines 25-90 
+sed -i '26,$d' hg19.chrom.sizes  # only chr1-22, X, Y, M are left
+sort -k 1,1 hg19.chrom.sizes > hg19.chrom.sorted.sizes  # 2
+rm hg19.chrom.sizes  # rm file 1
+mv hg19.chrom.sorted.sizes hg19.chrom.sizes  # rename file 2
+sed -i "s/M/MT/" hg19.chrom.sizes  # rename chrM to chrMT
+
+## sort crup file
+sort -k1,1 -k2,2n $crupEnh > islets.merged.CRUP.clusterEnh.sorted.bed
+crupEnh="/project/NeuralNet/CRC/crup/islets.merged.CRUP.clusterEnh.sorted.bed"
+# sort -k1,1 -k2,2n islets.HI-32.CRUP.clusterEnh.bed > islets.HI-32.CRUP.clusterEnh.sorted.bed
+# crupEnh="/project/NeuralNet/CRC/crup/islets.HI-32.CRUP.clusterEnh.sorted.bed"
+
+## sort hubs file  # hubs file is already sorted
+## sort SE file  # SE is already sorted
+## sort clusters file
+sort -k1,1 -k2,2n $clusters > /project/NeuralNet/CRC/Papers/EnhancerHub_PubMed31253982/islet.enhClusters.sorted.bed
+clusters='/project/NeuralNet/CRC/Papers/EnhancerHub_PubMed31253982/islet.enhClusters.sorted.bed'
+
+bedtools fisher -a $crupEnh -b $hubs -g hg19.chrom.sizes
+bedtools fisher -a $crupEnh -b $SE -g hg19.chrom.sizes
+bedtools fisher -a $crupEnh -b $clusters -g hg19.chrom.sizes
+
+
+
+# -------------------- 09.05 --------------------
+# 1. running ROSE using example data
+# -----------------------------------------------
+ssh gnosiophobie
+cd /project/NeuralNet/CRC/ROSE/ROSE_package  # root directory must be the directory containing ROSE_main.py
+
+# running script on the server
+# need to modify ROSE_utils.py to specify samtools version, in line 632,
+# otherwise, can't get the statistical summary of control bam. 
+
+gff="/project/NeuralNet/CRC/ROSE/ROSE_DATA/data/HG18_MM1S_MED1_1000.gff"
+bam="/project/NeuralNet/CRC/ROSE/ROSE_DATA/data/MM1S_MED1.hg18.bwt.sorted.bam"
+outdir="/project/NeuralNet/CRC/ROSE/example_data"
+control="/project/NeuralNet/CRC/ROSE/ROSE_DATA/data/MM1S_WCE.hg18.bwt.sorted.bam"
+python2 ROSE_main.py -g HG18 -i $gff -r $bam -o $outdir -s 12500 -t 2500 -c $control  # this script uses python2
+
+# or running script on clusters
+# https://intranet.molgen.mpg.de/en/service/scientific-service/it/infos/cluster/
+mxqsub --stdout="../example_data/example.log" \
+	   --group-name="rose_example" \
+	   --processors=10 \
+	   --memory=50G \
+	   --runtime=2d \
+	   python2 ROSE_main.py \
+	   		-g HG18 \
+	   		-i ../ROSE_DATA/data/HG18_MM1S_MED1_1000.gff \
+	   		-r ../ROSE_DATA/data/MM1S_MED1.hg18.bwt.sorted.bam \
+	   		-c ../ROSE_DATA/data/MM1S_WCE.hg18.bwt.sorted.bam \
+	   		-s 12500 \
+	   		-t 2500 \
+	   		-o ../example_data/
+# check running status
+mxqdump --group-id ...
+# kill the job
+mxqkill --group-id
+
+
+# -------------------- 09.07 --------------------
+# 1. running ROSE using example data
+# 2. recapitulation of Meissner's paper
+#    - 2.1 download raw data (fastq) > /project/NeuralNet/CRC/ChIP-seq/Meissner/
+     - 2.2 bowtie2 mapping + to bam
+     - 2.3 comparison between samples
+     - 2.4 MACS2
+     - 2.5 refseq
+# -----------------------------------------------
+
+# 2.1 download raw data (only DE, at present)
+cd /project/NeuralNet/CRC/ChIP-seq/Meissner/
+
+# download data
+cat SRR_Acc_List.txt | while read id; 
+do
+	wget https://sra-pub-run-odp.s3.amazonaws.com/sra/$id/$id -O $id.fastq.gz
+done
+
+# rename file names
+sed -n "2,7p" SRR_ChIP-seq_acc_list.txt | awk -F "\t" '{system("mv "$1".fastq.gz "$16".fastq.gz")}'
+
+# rename .fastq.gz .man DE*  # .fastq.gz -> .man
+
+# transform data into fastq file
+ls DE* | tail -n 5 | while read id;
+do
+	fastq-dump --split-3 --gzip $id
+done
+
+# quality control
+ls *.gz | while read id; do (fastqc $id -o ./qc/fastqc/); done
+multiqc ./qc/fastqc/ -o ./qc/multiqc/
+
+# 2.2 bowtie2 mapping
+cd /project/NeuralNet/CRC/ChIP-seq/Meissner/
+
+# mapping
+
+# for single file
+index="/project/NeuralNet/CRC/ChIP-seq/mapping/bowtie2/hg19"
+bowtie2 -q -p 10 -x $index/hg19 -1 DE_H3K27ac_rep1_run1_1.fastq.gz -2 DE_H3K27ac_rep1_run1_2.fastq.gz -S DE_H3K27ac_rep1_run1.sam 2>DE_H3K27ac_rep1_run1.log
+
+# loop
+index="/project/NeuralNet/CRC/ChIP-seq/mapping/bowtie2/hg19"
+ls -v *_1.fastq.gz | while read id;
+do
+	name=${id%_*}
+	bowtie2 -q -p 15 -x $index/hg19 -1 $id -2 ${name}_2.fastq.gz \
+	-S ${name}.sam \
+	> ${name}.log 2>&1
+done
+
+# mapping with STAR
+star_version="/project/ngsvin/bin/mapping/STAR/STAR_2.6.1d/bin/Linux_x86_64/STAR"
+${star_version} --runThreadN 10 \
+--genomeDir /project/ngsvin/MappingIndices/STAR/hg19 \
+--readFilesIn DE_H3K27ac_rep1_run2_1.fastq.gz DE_H3K27ac_rep1_run2_2.fastq.gz \
+--readFilesCommand zcat \
+--alignEndsType EndToEnd \
+--alignIntronMax 1 \
+--alignSJDBoverhangMin 999 \
+--outTmpDir /scratch/local2/jieyidi/STAR \
+--outSAMtype BAM Unsorted \
+--outStd BAM_Unsorted \
+> DE_H3K27ac_rep1_star.bam
+
+# sam2bam
+ls *.sam | while read id;
+do
+	samtools view -@ 10 -hbS $id > ${id%.*}.unsorted.bam
+done
+rm *.sam
+
+# sort
+ls *.bam | while read id;
+do
+	sambamba sort -t 10 $id -o ${id%%.*}.bam
+done
+rm *.unsorted.bam
+
+# 2.3 comparison between samples
+conda activate genetics
+
+multiBamSummary bins -p 10 --smartLabels \
+--bamfiles *.bam \
+-o readCounts.npz \
+--outRawCounts readCounts.tab
+
+plotCorrelation -in readCounts.npz \
+--corMethod pearson \
+--skipZeros \
+--plotTitle "Pearson Correlation of Read Counts" \
+--whatToPlot heatmap \
+--colorMap RdYlBu \
+--plotNumbers \
+-o PearsonCorr_readCounts.pdf \
+--outFileCorMatrix PearsonCorr_readCounts.tab
+
+# merge
+samtools merge -@ 10 *H3K27ac*.bam -o DE_H3K27ac.bam
+samtools index -@ 10 DE_H3K27ac.bam
+
+samtools merge -@ 10 *WCE*.bam -o DE_WCE.bam
+samtools index -@ 10 DE_WCE.bam
+
+samtools flagstat
+
+# 2.4 call peaks by MACS2
+macs2 callpeak -t DE_H3K27ac.bam -c DE_WCE.bam -n DE -B -q 0.01 --outdir ./macs2 2>./macs2/logs/DE.macs2.log
+
+
+
+
+
+
+# 
+# FIMO: ls -l /project/ngsvin/bin/Meme/meme-5.4.1/bin/
+# motif: /project/ngsvin/TransFac/TFP_2021.3/dat
+
+

@@ -1,8 +1,8 @@
 # CRC
 ## Contents in local computer
-> tree ChIP-seq/
 <pre>
-./ChIP-seq/
+$ tree ChIP-seq/
+ChIP-seq/
 ├── crup
 │   ├── islets.HI-32.CRUP.clusterEnh.bed
 │   ├── islets.HI-32.CRUP.prediction.bw
@@ -140,5 +140,12 @@
 - [x] mapping with STAR
 - [x] mapping with Bowtie2 (partially done)
 - [x] CRUP - sample 32
-- [ ] CRUP - merged
+- [x] CRUP - merged
 - [ ] deeptools
+
+## Tutorials
+- [ChIP-seq dibsi2018 tutorial](https://angus.readthedocs.io/en/2019/chip-seq.html)
+- [SAMTools](https://davetang.org/wiki/tiki-index.php?page=SAMTools)
+- [Gene expression units explained: RPM, RPKM](https://www.reneshbedre.com/blog/expression_units.html)
+- **[github:  Introduction to ChIP-seq using high performance computing](https://github.com/hbctraining/Intro-to-ChIPseq)**
+- [Plasmids 101: The Promoter Region – Let's Go!](https://blog.addgene.org/plasmids-101-the-promoter-region)
