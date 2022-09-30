@@ -433,13 +433,17 @@ mxqkill --group-id
 # 1. running ROSE using example data
 # 2. recapitulation of Meissner's paper
 #    - 2.1 download raw data (fastq) > /project/NeuralNet/CRC/ChIP-seq/Meissner/
-     - 2.2 bowtie2 mapping + to bam
-     - 2.3 comparison between samples
-     - 2.4 MACS2
-     - 2.5 refseq
+#    - 2.2 bowtie2 mapping + to bam
+#    - 2.3 comparison between samples
+#    - 2.4 MACS2
+#    - (x) 2.5 promoter regions: tss +/- 2kb (09.19)
+#    - 2.6 ROSE
+#    - 2.7 CRCmapper (09.22)
+#    - 2.8 debugging (09.29)
 # -----------------------------------------------
 
 # 2.1 download raw data (only DE, at present)
+# https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE139817
 cd /project/NeuralNet/CRC/ChIP-seq/Meissner/
 
 # download data
@@ -456,6 +460,8 @@ sed -n "2,7p" SRR_ChIP-seq_acc_list.txt | awk -F "\t" '{system("mv "$1".fastq.gz
 # transform data into fastq file
 ls DE* | tail -n 5 | while read id;
 do
+
+
 	fastq-dump --split-3 --gzip $id
 done
 
@@ -481,20 +487,6 @@ do
 	-S ${name}.sam \
 	> ${name}.log 2>&1
 done
-
-# mapping with STAR
-star_version="/project/ngsvin/bin/mapping/STAR/STAR_2.6.1d/bin/Linux_x86_64/STAR"
-${star_version} --runThreadN 10 \
---genomeDir /project/ngsvin/MappingIndices/STAR/hg19 \
---readFilesIn DE_H3K27ac_rep1_run2_1.fastq.gz DE_H3K27ac_rep1_run2_2.fastq.gz \
---readFilesCommand zcat \
---alignEndsType EndToEnd \
---alignIntronMax 1 \
---alignSJDBoverhangMin 999 \
---outTmpDir /scratch/local2/jieyidi/STAR \
---outSAMtype BAM Unsorted \
---outStd BAM_Unsorted \
-> DE_H3K27ac_rep1_star.bam
 
 # sam2bam
 ls *.sam | while read id;
@@ -537,16 +529,215 @@ samtools index -@ 10 DE_WCE.bam
 
 samtools flagstat
 
+rm *run[0-9].*
+rm *.tab *.npz
+
+
 # 2.4 call peaks by MACS2
-macs2 callpeak -t DE_H3K27ac.bam -c DE_WCE.bam -n DE -B -q 0.01 --outdir ./macs2 2>./macs2/logs/DE.macs2.log
+## https://github.com/crazyhottommy/ChIP-seq-analysis/blob/master/part1.3_MACS2_peak_calling_details.mds
+cd /project/NeuralNet/CRC/ChIP-seq/Meissner/
+macs2 callpeak -t DE_H3K27ac.bam -c DE_WCE.bam --name DE --bdg -q 0.01 --broad --broad-cutoff 0.01 --outdir ./macs2_broad 2>./macs2_broad/logs/DE.macs2.log
+## time real	13m48.112s
+
+# 2.5 promoter regions: tss +/- 2kb
+# ref: https://www.biostars.org/p/250091/
+# bedops: https://bedops.readthedocs.io/en/latest/content/reference/set-operations/bedops.html#everything-u-everything
+cd /project/NeuralNet/CRC/ChIP-seq/Meissner/
+wget -qO- http://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/refGene.txt.gz | gunzip -c - | awk 'BEGIN{ OFS="\t" } { print $3,$5,$6,$13,$10,$4 }' - | sort-bed - > hg19.refGene.bed
+# $3-chr; $5-txStart; $6-txEnd; $13-name2; $10-exonStart; $4-strand
+
+awk '($6 == "+") { print $0 }' hg19.refGene.bed | awk 'BEGIN{ OFS="\t"; a=2000; b=2000 } ($2 > a) { print $1,($2-a),($2+b),$4,$5,$6}' > hg19.refGene.tss.for.padded.bed
+
+awk '($6 == "-") { print $0 }' hg19.refGene.bed | awk 'BEGIN{ OFS="\t"; a=2000; b=2000 } ($3 > b) { print $1,($3-b),($3+a),$4,$5,$6}' > hg19.refGene.tss.rev.padded.bed
+
+bedops --everything hg19.refGene.tss.for.padded.bed hg19.refGene.tss.rev.padded.bed > hg19.refGene.tss.padded.bed  # concatenate for&rev
+
+fetchChromSizes hg19 | awk '{ print $1"\t0\t"$2 }' | sort-bed - > hg19.bounds.bed  # chromSize
+bedops --element-of 100% hg19.refGene.tss.padded.bed hg19.bounds.bed | sort-bed - > hg19.refGene.tss.2kb.bed
+
+rm *padded*
+rm hg19.bounds.bed hg19.refGene.bed
+
+# awk 'BEGIN{ OFS="\t" } {NF=6}1' ./macs2/DE_peaks.narrowPeak | sort-bed - > ./macs2/DE_peaks.sorted.bed
+awk 'BEGIN{ OFS="\t" } {NF=6}1' ./macs2_broad/DE_peaks.broadPeak | sort-bed - > ./macs2_broad/DE_peaks.sorted.bed
+
+# wc -l ./macs2/DE_peaks.sorted.bed  # 20061
+wc -l ./macs2_broad/DE_peaks.broadPeak  # 19118
+wc -l hg19.refGene.tss.2kb.bed  # 81407
+
+# bedops --not-element-of 1 ./macs2/DE_peaks.sorted.bed hg19.refGene.tss.2kb.bed > ./macs2/DE_peaks_notss.bed
+# wc -l ./macs2/DE_peaks_notss.bed  # 8703
+# rm ./macs2/DE_peaks.sorted.bed
+bedops --not-element-of 1 ./macs2_broad/DE_peaks.sorted.bed hg19.refGene.tss.2kb.bed > ./macs2_broad/DE_peaks_notss.bed
+wc -l ./macs2_broad/DE_peaks_notss.bed  # 8529
+rm ./macs2_broad/DE_peaks.sorted.bed
+
+# exclude overlaps in summit bed file
+wc -l ./macs2/DE_summits.bed  # 20061
+bedops --element-of 1 ./macs2/DE_summits.bed ./macs2/DE_peaks.bed > ./macs2/DE_summits_notss.bed
+wc -l ./macs2/DE_summits_notss.bed  # 8703
+
+# ncbiRefSeq
+cd /project/NeuralNet/CRC/ChIP-seq/Meissner/
+wget -qO- http://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/ncbiRefSeq.txt.gz | gunzip -c - | awk 'BEGIN{ OFS="\t" } { print $3,$5,$6,$13,$4 }' - | sort-bed - > hg19.ncbiRefSeq.bed
+awk '($5 == "+") { print $0 }' hg19.ncbiRefSeq.bed | awk 'BEGIN{ OFS="\t"; a=2000; b=2000 } ($2 > a) { print $1,($2-a),($2+b),$4,$5}' > hg19.ncbiRefSeq.tss.for.padded.bed
+awk '($5 == "-") { print $0 }' hg19.ncbiRefSeq.bed | awk 'BEGIN{ OFS="\t"; a=2000; b=2000 } ($3 > b) { print $1,($3-b),($3+a),$4,$5}' > hg19.ncbiRefSeq.tss.rev.padded.bed
+rm hg19.ncbiRefSeq.bed
+bedops --everything hg19.ncbiRefSeq.tss.for.padded.bed hg19.ncbiRefSeq.tss.rev.padded.bed | sort-bed - > hg19.ncbiRefSeq.tss.padded.bed  # concatenate for&rev
+rm hg19.ncbiRefSeq.tss.for.padded.bed hg19.ncbiRefSeq.tss.rev.padded.bed
+fetchChromSizes hg19 | awk '{ print $1"\t0\t"$2 }' | sort-bed - > hg19.bounds.bed  # chromSize
+bedops --element-of 100% hg19.ncbiRefSeq.tss.padded.bed hg19.bounds.bed | sort-bed - > hg19.ncbiRefSeq.tss.2kb.bed
+rm hg19.ncbiRefSeq.tss.padded.bed hg19.bounds.bed
+awk 'BEGIN{ OFS="\t" } {NF=6}1' ./macs2_broad/DE_peaks.broadPeak | sort-bed - > ./macs2_broad/DE_peaks.sorted.bed
+
+wc -l ./macs2_broad/DE_peaks.broadPeak  # 19118
+wc -l hg19.ncbiRefSeq.tss.2kb.bed  # 86229
+bedops --not-element-of 1 ./macs2_broad/DE_peaks.sorted.bed hg19.ncbiRefSeq.tss.2kb.bed | --element-of 100% ./macs2/DE_peaks_notss.bed - | wc -l  # 8531
+
+# built-in annoation
+cd /project/NeuralNet/CRC/ChIP-seq/Meissner/
+awk 'BEGIN{ OFS="\t" } NR>1 { print $3,$5,$6,$13,$4 }' ../../ROSE/ROSE_package/annotation/hg19_refseq.ucsc | sort-bed - > hg19_refseq.ucsc.bed
+awk '($5 == "+") { print $0 }' hg19_refseq.ucsc.bed | awk 'BEGIN{ OFS="\t"; a=2000; b=2000 } ($2 > a) { print $1,($2-a),($2+b),$4,$5}' > hg19_refseq.tss.for.padded.bed
+awk '($5 == "-") { print $0 }' hg19_refseq.ucsc.bed | awk 'BEGIN{ OFS="\t"; a=2000; b=2000 } ($3 > b) { print $1,($3-b),($3+a),$4,$5}' > hg19_refseq.tss.rev.padded.bed
+rm hg19_refseq.ucsc.bed
+bedops --everything hg19_refseq.tss.for.padded.bed hg19_refseq.tss.rev.padded.bed | sort-bed - > hg19_refseq.tss.padded.bed
+rm hg19_refseq.tss.for.padded.bed hg19_refseq.tss.rev.padded.bed
+fetchChromSizes hg19 | awk '{ print $1"\t0\t"$2 }' | sort-bed - > hg19.bounds.bed  # chromSize
+bedops --element-of 100% hg19_refseq.tss.padded.bed hg19.bounds.bed | sort-bed - > hg19_refseq.tss.2kb.bed
+rm hg19_refseq.tss.padded.bed hg19.bounds.bed
+bedops --not-element-of 1 ./macs2_broad/DE_peaks.sorted.bed hg19_refseq.tss.2kb.bed | wc -l
+
+
+# 2.6 ROSE
+# http://younglab.wi.mit.edu/super_enhancer_code.html
+# https://bitbucket.org/young_computation/rose/src/master/
+## a: MACS2.enhancers.gff
+## b: H3K27ac.bam + *.bam.bai
+## c: WCE.bam + *.bam.bai
+
+# making .gff file
+cd /project/NeuralNet/CRC/ChIP-seq/Meissner/macs2_broad
+## .bed file (6): chr 	start 	end 	name 	score 	strand
+## .gff file (9): chr 	name 	None 	start 	end 	None 	strand 	None 	name2
+# awk 'BEGIN{ FS=OFS="\t" } {print $1,$4,"\t"$2,$3,"\t"$6,"\t"$4}' DE_peaks_notss.bed > DE_peaks_notss.gff
+awk 'BEGIN{ FS=OFS="\t" } {print $1,$4,"\t"$2,$3,"\t"$6,"\t"$4}' DE_peaks.broadPeak > DE_peaks.broadPeak.gff
+
+ssh gnosiophobie
+cd /project/NeuralNet/CRC/ROSE/ROSE_package  # root directory must be the directory containing ROSE_main.py
+mkdir ../paper_data
+
+# running script on the server
+# need to modify ROSE_utils.py to specify samtools version, in line 632,
+# otherwise, can't get the statistical summary of control bam. 
+# (x) modify ROSE_bamToGFF.py in line 40 to halve the number of millionMappedReads (MMR)
+
+gff="/project/NeuralNet/CRC/ChIP-seq/Meissner/macs2_broad/DE_peaks.broadPeak.gff"
+bam="/project/NeuralNet/CRC/ChIP-seq/Meissner/DE_H3K27ac.bam"
+control="/project/NeuralNet/CRC/ChIP-seq/Meissner/DE_WCE.bam"
+outdir="/project/NeuralNet/CRC/ROSE/paper_data_4/"
+base=$(basename $bam)
+time python2 ROSE_main.py -g HG19 -i $gff -r $bam -o $outdir -s 12500 -t 2000 -c $control > $outdir/${base%_*}.log
+##real	30m38.287s
+## real	65m41.299s
+
+
+# 2.7 CRCmapper
+cd /project/NeuralNet/CRC/CRCmapper
+
+# downloading genome fasta files
+mkdir hg19
+cd hg19
+wget --timestamping 'ftp://hgdownload.cse.ucsc.edu/goldenPath/hg19/chromosomes/*'
+rm *.txt
+ls *.gz | while read id; do (gunzip $id); done
+
+# CRCmapper.py modifications
+## line 63: python -> python2
+## line 333: fasta-get-markov -> /project/ngsvin/bin/Meme/meme-5.4.1/libexec/meme-5.4.1/fasta-get-markov
+## line 337: fimo -> /project/ngsvin/bin/Meme/meme-5.4.1/bin/fimo
+
+# run CRCmapper
+cd /project/NeuralNet/CRC/CRCmapper/CRCmapper_package/
+#enhTable="/project/NeuralNet/CRC/ROSE/paper_data/DE_peaks_AllEnhancers.table.txt"
+bam="/project/NeuralNet/CRC/ChIP-seq/Meissner/DE_H3K27ac.bam"
+genome="../hg19/"
+#summit="/project/NeuralNet/CRC/ChIP-seq/Meissner/macs2/DE_summits.bed"
+#outdir="/project/NeuralNet/CRC/CRCmapper/results/"
+enhTable="/project/NeuralNet/CRC/ROSE/paper_data_3/DE_peaks_notss_AllEnhancers.table.txt"
+bed="/project/NeuralNet/CRC/ChIP-seq/Meissner/macs2_broad/DE_peaks_notss.bed"
+outdir="/project/NeuralNet/CRC/CRCmapper/results_2/"
+python2 CRCmapper.py -e $enhTable -b $bam -g HG19 -f $genome -s $bed -n DE -o $outdir
+## real	81m55.766s
+
+ls -l results* | grep '^-' | wc -l  # count number
+ls results* | while read id; do (mv $id ./results/${id#results});done
+mkdir ./results/motifs
+ls ./results/*motifs.bed | while read id;
+do
+	name=$(basename $id)
+	mv $id ./results/motifs/$name
+done
 
 
 
-
-
-
-# 
 # FIMO: ls -l /project/ngsvin/bin/Meme/meme-5.4.1/bin/
 # motif: /project/ngsvin/TransFac/TFP_2021.3/dat
+
+
+# 2.8 debugging
+## a. check TF files in CRCmapper package  
+### all TFs that are recognized as auto-regulatory TFs in the paper exist in the TF list in the package
+## b. check every step in the pipeline
+### hg19.refGene.tss.2kb.bed unsorted > peaks number changed
+### !!! I didn't exclude the regions in summits.bed file that overlap with gene promoter-proximal regions
+### divided MMR in ROSE_bamToGff.py by 2 -> exactly the same results, doesn't matter at all.
+### broadPeaks, MACS2 --broad --broad-cutoff 0.01
+### stupid mistake!!! input for CRCmapper (-s [SUBPEAKS]) is not the summit.bed!!! it should be the peaks.bed file
+### tss
+## b. check overlaps
+## c. visualization of ChIP-seq data
+
+# getting DE_SE.byH3K27ac.bed & DE_TE.byH3K27ac.bed
+wget -qO- https://ftp.ncbi.nlm.nih.gov/geo/series/GSE140nnn/GSE140500/suppl/GSE140500%5FDE%5FSE%2EbyH3K27ac%2Ebed%2Egz | gunzip -c - > GSE140500_DE_SE.byH3K27ac.bed
+wget -qO- https://ftp.ncbi.nlm.nih.gov/geo/series/GSE140nnn/GSE140500/suppl/GSE140500%5FDE%5FTE%2EbyH3K27ac%2Ebed%2Egz | gunzip -c - > GSE140500_DE_TE.byH3K27ac.bed
+wc -l GSE140500_DE_SE.byH3K27ac.bed  # 594
+wc -l GSE140500_DE_TE.byH3K27ac.bed  # 5543
+bedops --element-of 1 GSE140500_DE_SE.byH3K27ac.bed GSE140500_DE_TE.byH3K27ac.bed  # no overlaps
+## make a file named Supp_DE_regions.bed
+wc -l Supp_DE_regions.bed  # 6137
+bedops --element-of 100% GSE140500_DE_SE.byH3K27ac.bed Supp_DE_regions.bed | wc -l  # 594
+bedops --element-of 100% GSE140500_DE_TE.byH3K27ac.bed Supp_DE_regions.bed | wc -l  # 5543
+## SE & TE completely overlap the Supplementary Table S4
+## Table S4 is the output of ROSE (*_AllEnhancers.table.txt)
+## SE stands for Super-Enhancers (*_SuperEnhancers.table.txt)
+## TE stands for Typical-Enhancers
+wc -l ROSE_DE_SE_original.sorted.bed  # 525
+wc -l ROSE_DE_SE_divided_by_2.sorted.bed  # 522
+bedops --element-of 100% ROSE_DE_SE_original.sorted.bed ROSE_DE_SE_divided_by_2.sorted.bed | wc -l  # 521
+bedops --element-of 100% ROSE_DE_SE_divided_by_2.sorted.bed ROSE_DE_SE_original.sorted.bed | wc -l  # 522
+## all SE called by the modified ROSE 100% overlap the regions by original ROSE
+## but there are 3 SE called by the original ROSE that do not exist in the other one
+## and there is 1 SE called by the original ROSE that has larger region than the corresponding enhancer called by the modified ROSE
+bedops --element-of 100% ROSE_DE_SE_divided_by_2.sorted.bed GSE140500_DE_SE.byH3K27ac.bed | wc -l  # 323
+bedops --element-of 100% ROSE_DE_SE_original.sorted.bed GSE140500_DE_SE.byH3K27ac.bed | wc -l  # 323
+## modifying the script doesn't help at all
+## 323 SE called by me 100% overlap the SE reported in the paper
+bedops --element-of 100% GSE140500_DE_SE.byH3K27ac.bed ROSE_DE_SE_divided_by_2.sorted.bed | wc -l  # 0
+bedops --element-of 100% GSE140500_DE_SE.byH3K27ac.bed ROSE_DE_SE_original.sorted.bed | wc -l  # 0
+## but none of the SE reported in the paper 100% overlaps the SE called by me
+## which indicates that the length of SE in the paper are larger than called by me
+intersectBed -b ROSE_DE_SE_3.sorted.bed -a GSE140500_DE_SE.byH3K27ac.bed -wao|less
+intersectBed -a ../ChIP-seq/Meissner/GSE140500_DE_TE.byH3K27ac.bed -b - -wao | awk '$11!=0{ print $3-$2, $7-$6, $11 }' - | less
+
+
+
+
+
+
+
+
+
+
+
 
 
