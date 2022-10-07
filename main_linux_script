@@ -440,6 +440,7 @@ mxqkill --group-id
 #    - 2.6 ROSE
 #    - 2.7 CRCmapper (09.22)
 #    - 2.8 debugging (09.29)
+#    - 2.9 visualization (10.05)
 # -----------------------------------------------
 
 # 2.1 download raw data (only DE, at present)
@@ -607,6 +608,7 @@ bedops --element-of 100% hg19_refseq.tss.padded.bed hg19.bounds.bed | sort-bed -
 rm hg19_refseq.tss.padded.bed hg19.bounds.bed
 bedops --not-element-of 1 ./macs2_broad/DE_peaks.sorted.bed hg19_refseq.tss.2kb.bed | wc -l
 
+bedtools subtract -a ./macs2_broad_0.05/DE_peaks.broadPeak -b hg19_refseq.tss.2kb.bed > ./macs2_broad_0.05/DE_peaks_notss.broadPeak
 
 # 2.6 ROSE
 # http://younglab.wi.mit.edu/super_enhancer_code.html
@@ -658,15 +660,17 @@ ls *.gz | while read id; do (gunzip $id); done
 
 # run CRCmapper
 cd /project/NeuralNet/CRC/CRCmapper/CRCmapper_package/
+mkdir ../results_3
 #enhTable="/project/NeuralNet/CRC/ROSE/paper_data/DE_peaks_AllEnhancers.table.txt"
 bam="/project/NeuralNet/CRC/ChIP-seq/Meissner/DE_H3K27ac.bam"
 genome="../hg19/"
 #summit="/project/NeuralNet/CRC/ChIP-seq/Meissner/macs2/DE_summits.bed"
 #outdir="/project/NeuralNet/CRC/CRCmapper/results/"
-enhTable="/project/NeuralNet/CRC/ROSE/paper_data_3/DE_peaks_notss_AllEnhancers.table.txt"
-bed="/project/NeuralNet/CRC/ChIP-seq/Meissner/macs2_broad/DE_peaks_notss.bed"
-outdir="/project/NeuralNet/CRC/CRCmapper/results_2/"
-python2 CRCmapper.py -e $enhTable -b $bam -g HG19 -f $genome -s $bed -n DE -o $outdir
+enhTable="/project/NeuralNet/CRC/ROSE/paper_data_4/DE_peaks_AllEnhancers.table.txt"
+bed="/project/NeuralNet/CRC/ChIP-seq/Meissner/macs2_broad/DE_peaks.broadPeak"
+outdir="/project/NeuralNet/CRC/CRCmapper/results_3/"
+base=$(basename $bam)
+time python2 CRCmapper.py -e $enhTable -b $bam -g HG19 -f $genome -s $bed -n DE -o $outdir > $outdir/${base%_*}.log
 ## real	81m55.766s
 
 ls -l results* | grep '^-' | wc -l  # count number
@@ -730,14 +734,61 @@ intersectBed -b ROSE_DE_SE_3.sorted.bed -a GSE140500_DE_SE.byH3K27ac.bed -wao|le
 intersectBed -a ../ChIP-seq/Meissner/GSE140500_DE_TE.byH3K27ac.bed -b - -wao | awk '$11!=0{ print $3-$2, $7-$6, $11 }' - | less
 
 
+# 2.9 visualization
+## bamTobigwig
+cd /project/NeuralNet/CRC/ChIP-seq/Meissner
+mkdir visualization
+bamCoverage -p 10 -b DE_H3K27ac.bam -o ./visualization/DE_H3K27ac.bw --normalizeUsing RPKM --extendReads 200
+time bamCoverage -p 10 -b DE_WCE.bam -o ./visualization/DE_WCE.bw --normalizeUsing RPKM --extendReads 200
+## 5m20.887s
+bedGraphToBigWig ./macs2_broad/DE_treat_pileup.bdg hg19.chrom.sizes ./visualization/DE_peaks_treat.broadPeak.bw
 
 
+E2F3	*	*
+(ELK4)		*
+EOMES	*	*
+FOXA2
+FOXO3
+GATA4	*	*
+GATA6	*	*
+GSC		*	*
+HES1
+JUND
+KLF7	*	*
+LHX1	*	*
+MYCN
+NR2F6	*	*
+OTX2	*	*
+PBX1		*
+PITX2	*	*
+PKNOX1		*
+RARB		*
+REST
+(SALL2)	*	*
+SOX17	*	*
+SOX4
+SP3			*
+SREBF1
+TCF7L1	*	*
+TCF7L2	*	*
+TGIF1	*	*
+YY1
+ZIC2	*	*
+ZIC3	*	*
+ZNF217	*	*
 
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_H3K27ac.bw
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_WCE.bw
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_peaks_Gateway_SuperEnhancers_0.01.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_peaks_Gateway_SuperEnhancers_0.05.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_peaks_Gateway_TypicalEnhancers_0.01.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_peaks_Gateway_TypicalEnhancers_0.05.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_peaks_control_0.01.broadPeak.bw
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_peaks_control_0.05.broadPeak.bw
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_peaks_treat_0.01.broadPeak.bw
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_peaks_treat_0.05.broadPeak.bw
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/GSE140500_DE_SE.byH3K27ac.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/GSE140500_DE_TE.byH3K27ac.bed
 
-
-
-
-
-
-
-
+71,72,76
+238,63,77
