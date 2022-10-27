@@ -544,10 +544,17 @@ cd /project/NeuralNet/CRC/ChIP-seq/Meissner/
 time macs2 callpeak -t DE_H3K27ac.bam -c DE_WCE.bam --name DE --bdg -q 0.05 --broad --broad-cutoff 0.05 --outdir ./macs2_DE_narrow.05_broad.05 2>./macs2_DE_narrow.05_broad.05/DE.log  # 14m14.386s
 # macs2 callpeak -t DE_H3K27ac.bam -c DE_WCE.bam --name DE --bdg -q 0.01 --broad --broad-cutoff 0.01 --outdir ./macs2_broad 2>./macs2_broad/logs/DE.macs2.log
 ## time real	13m48.112s
+## callpeak analysis
+mkdir macs2_DE_analysis
+time macs2 callpeak -t DE_H3K27ac.bam -c DE_WCE.bam --name DE -q --broad --broad-cutoof --outdir ./macs2_DE_analysis 2>./macs2_DE_analysis/DE_analysis.log
+
 
 # 2.5 promoter regions: tss +/- 2kb
 # ref: https://www.biostars.org/p/250091/
 # bedops: https://bedops.readthedocs.io/en/latest/content/reference/set-operations/bedops.html#everything-u-everything
+# hg19_refseq_NMNR: original hg19_refseq.ucsc
+# hg19_refseq_NM: original hg19_refseq.ucsc only with NM_*
+# hg19_refseq: archive refseq downloaded from https://hgdownload.soe.ucsc.edu/goldenPath/archive/hg19/ncbiRefSeq/105.20201022/hg19.ncbiRefSeq.txt.gz
 cd /project/NeuralNet/CRC/ChIP-seq/Meissner/
 wget -qO- http://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/refGene.txt.gz | gunzip -c - | awk 'BEGIN{ OFS="\t" } { print $3,$5,$6,$13,$10,$4 }' - | sort-bed - > hg19.refGene.bed
 # $3-chr; $5-txStart; $6-txEnd; $13-name2; $10-exonStart; $4-strand
@@ -601,6 +608,15 @@ wc -l ./macs2_broad/DE_peaks.broadPeak  # 19118
 wc -l hg19.ncbiRefSeq.tss.2kb.bed  # 86229
 bedops --not-element-of 1 ./macs2_broad/DE_peaks.sorted.bed hg19.ncbiRefSeq.tss.2kb.bed | --element-of 100% ./macs2/DE_peaks_notss.bed - | wc -l  # 8531
 
+# archive ncbiRefSeq
+wget -qO- https://hgdownload.soe.ucsc.edu/goldenPath/archive/hg19/ncbiRefSeq/105.20201022/hg19.ncbiRefSeq.txt.gz | gunzip -c - | awk 'BEGIN{ FS=OFS="\t" } $2~/NM/{ print $0 }' > hg19_refseq.ucsc
+# 59461
+cut -f 2,13 annotation/hg19_refseq.ucsc | sort -u -t\t -k1,1 > TFlist_NMid_hg.txt
+cd /project/NeuralNet/CRC/CRCmapper/hg19
+ls * | while read chr; do echo ${chr%.*} >> ../CRCmapper_package/annotation/hg19.chrom;done
+cd ../CRCmapper_package/annotation/
+cat hg19.chrom | while read chr; do grep -w $chr hg19_refseq.ncbi >> new.txt; done
+
 # built-in annoation
 cd /project/NeuralNet/CRC/ChIP-seq/Meissner/
 awk 'BEGIN{ OFS="\t" } NR>1 { print $3,$5,$6,$13,$4 }' ../../ROSE/ROSE_package/annotation/hg19_refseq.ucsc | sort-bed - > hg19_refseq.ucsc.bed
@@ -638,24 +654,31 @@ mkdir ../paper_data
 # need to modify ROSE_utils.py to specify samtools version, in line 632,
 # otherwise, can't get the statistical summary of control bam. 
 # (x) modify ROSE_bamToGFF.py in line 40 to halve the number of millionMappedReads (MMR)
+# hg19_refseq_NMNR: original hg19_refseq.ucsc
+# hg19_refseq_NM: original hg19_refseq.ucsc only with NM_*
+# hg19_refseq.ncbi: archive refseq downloaded from https://hgdownload.soe.ucsc.edu/goldenPath/archive/hg19/ncbiRefSeq/105.20201022/hg19.ncbiRefSeq.txt.gz
+# hg19_refseq.ucsc: archive refseq with cert
+
 
 # 1. --narrow-q 0.01, removeTSS+/-2kb by UCSC refGene, exclTSS+/-2.5kb by ROSE
 # 2. --narrow-q 0.01, --broad-q 0.01, removeTSS+/-2kb by UCSC refGene, exclTSS+/-2.5kb by ROSE
 # 3. --narrow-q 0.01, --broad-q 0.01, exclTSS+/-2kb by ROSE
 # 4. --narrow-q 0.01, --broad-q 0.05, exclTSS+/-2kb by ROSE
 # 5. --narrow-q 0.05, --broad-q 0.05, incluTSS (i.e. -t 0)
-# 6. --narrow-q 0.05, --broad-q 0.05, exclTSS+/-2kb by ROSE (NM refSeq)
+# 6. --narrow-q 0.05, --broad-q 0.05, exclTSS+/-2kb by ROSE (NM)
+# 7. --narrow-q 0.05, --broad-q 0.05, exclTSS+/-2kb by ROSE (NM ncbi.refSeq)
 
 gff="/project/NeuralNet/CRC/ChIP-seq/Meissner/macs2_DE_narrow.05_broad.05/DE_peaks.broadPeak.gff"
 bam="/project/NeuralNet/CRC/ChIP-seq/Meissner/DE_H3K27ac.bam"
 control="/project/NeuralNet/CRC/ChIP-seq/Meissner/DE_WCE.bam"
 outdir="/project/NeuralNet/CRC/ROSE/5.rose_DE_narrow.05_broad.05_incltss/"
 base=$(basename $bam)
-time python2 ROSE_main.py -g HG19 -i $gff -r $bam -o $outdir -s 12500 -t 0 -c $control > $outdir/${base%_*}.log
+time python2 ROSE_main.py -g HG19 -i $gff -r $bam -o $outdir -s 12500 -t 2000 -c $control > $outdir/${base%_*}.log &
 ## 75m37.768s
 # time python2 ROSE_main.py -g HG19 -i $gff -r $bam -o $outdir -s 12500 -t 2000 -c $control > $outdir/${base%_*}.log
 ## real	30m38.287s
 ## real	65m41.299s
+mxqsub --group-name="rose_main" --processors=10 --memory=10G --runtime=5h --stdout="$outdir/${base%_*}.log" python2 ROSE_main.py -g HG19_NR -i $gff -r $bam -o $outdir -s 12500 -t 2000 -c $control &
 
 
 # 2.7 CRCmapper
@@ -673,6 +696,12 @@ ls *.gz | while read id; do (gunzip $id); done
 ## line 333: fasta-get-markov -> /project/ngsvin/bin/Meme/meme-5.4.1/libexec/meme-5.4.1/fasta-get-markov
 ## line 337: fimo -> /project/ngsvin/bin/Meme/meme-5.4.1/bin/fimo
 
+# hg19_refseq_NMNR: original hg19_refseq.ucsc
+# hg19_refseq_NM: original hg19_refseq.ucsc only with NM_*
+# hg19_refseq: archive refseq downloaded from https://hgdownload.soe.ucsc.edu/goldenPath/archive/hg19/ncbiRefSeq/105.20201022/hg19.ncbiRefSeq.txt.gz
+# TFlist_NMid_hg_NMNR.txt: original TFlist
+# TFlist_NMid_hg.txt: TFlist extracted from hg19_refseq
+
 # run CRCmapper
 cd /project/NeuralNet/CRC/CRCmapper/CRCmapper_package/
 mkdir ../results_3
@@ -681,7 +710,8 @@ mkdir ../results_3
 # 3. --narrow-q 0.01, --broad-q 0.01, exclTSS+/-2kb by ROSE
 # 4. --narrow-q 0.01, --broad-q 0.05, exclTSS+/-2kb by ROSE
 # 5. --narrow-q 0.05, --broad-q 0.05, incluTSS (i.e. -t 0)
-enhTable="/project/NeuralNet/CRC/ROSE/5.rose_DE_narrow.05_broad.05_incltss/DE_peaks_AllEnhancers.table.txt"
+
+enhTable="/project/NeuralNet/CRC/ROSE/7.rose_DE_narrow.05_broad.05_refSeq/DE_peaks_AllEnhancers.table.txt"
 bam="/project/NeuralNet/CRC/ChIP-seq/Meissner/DE_H3K27ac.bam"
 genome="../hg19/"
 bed="/project/NeuralNet/CRC/ChIP-seq/Meissner/macs2_DE_narrow.05_broad.05/DE_peaks.broadPeak"
@@ -720,6 +750,8 @@ done
 # getting DE_SE.byH3K27ac.bed & DE_TE.byH3K27ac.bed
 wget -qO- https://ftp.ncbi.nlm.nih.gov/geo/series/GSE140nnn/GSE140500/suppl/GSE140500%5FDE%5FSE%2EbyH3K27ac%2Ebed%2Egz | gunzip -c - > GSE140500_DE_SE.byH3K27ac.bed
 wget -qO- https://ftp.ncbi.nlm.nih.gov/geo/series/GSE140nnn/GSE140500/suppl/GSE140500%5FDE%5FTE%2EbyH3K27ac%2Ebed%2Egz | gunzip -c - > GSE140500_DE_TE.byH3K27ac.bed
+wget -qO- https://ftp.ncbi.nlm.nih.gov/geo/series/GSE140nnn/GSE140500/suppl/GSE140500%5FBeta%5FSE%2EbyH3K27ac%2Ebed%2Egz | gunzip -c - > GSE140500_Beta_SE.byH3K27ac.bed
+wget -qO- https://ftp.ncbi.nlm.nih.gov/geo/series/GSE140nnn/GSE140500/suppl/GSE140500%5FBeta%5FTE%2EbyH3K27ac%2Ebed%2Egz | gunzip -c - > GSE140500_Beta_TE.byH3K27ac.bed
 wc -l GSE140500_DE_SE.byH3K27ac.bed  # 594
 wc -l GSE140500_DE_TE.byH3K27ac.bed  # 5543
 bedops --element-of 1 GSE140500_DE_SE.byH3K27ac.bed GSE140500_DE_TE.byH3K27ac.bed  # no overlaps
@@ -762,7 +794,9 @@ bedGraphToBigWig ./macs2_broad/DE_treat_pileup.bdg hg19.chrom.sizes ./visualizat
 ## TE.bed
 cd /project/NeuralNet/CRC/ROSE/5.rose_DE_narrow.05_broad.05_incltss
 awk 'BEGIN{ OFS="\t" } $10==0{ print $2,$3,$4,$1,$9,"." }' DE_peaks_AllEnhancers.table.txt | sort-bed - > DE_peaks_Gateway_TypicalEnhancers.bed
-cp DE_peaks_Gateway_TypicalEnhancers.bed /project/ngsuploads/data/Haas/Jieyi/DE_TE_narrow.05_broad.05.bed
+awk 'BEGIN{ OFS="\t" } $9==0{ print $2,$3,$4,$1,$8,"." }' Beta_peaks_AllEnhancers.table.txt | sort-bed - > Beta_peaks_Gateway_TypicalEnhancers.bed
+cp Beta_peaks_Gateway_TypicalEnhancers.bed /project/ngsuploads/data/Haas/Jieyi/Beta_TE_narrow.05_broad.05.bed
+cp Beta_peaks_Gateway_SuperEnhancers.bed /project/ngsuploads/data/Haas/Jieyi/Beta_TE_narrow.05_broad.05.bed
 
 chmod a+r *
 http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_H3K27ac.bw
@@ -773,10 +807,17 @@ http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_SE_narrow.05_broad.05.bed
 http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_TE_narrow.01_broad.01.bed
 http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_TE_narrow.01_broad.05.bed
 http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_TE_narrow.05_broad.05.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_SE_narrow.05_broad.05_noNMtss.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_TE_narrow.05_broad.05_noNMtss.bed
 http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/GSE140500_DE_SE.byH3K27ac.bed
 http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/GSE140500_DE_TE.byH3K27ac.bed
 
-
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_H3K27ac.bw
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_peaks.broadPeak.gff
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_SE_narrow.05_broad.05_refseq.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_TE_narrow.05_broad.05_refseq.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/GSE140500_Beta_SE.byH3K27ac.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/GSE140500_Beta_TE.byH3K27ac.bed
 
 =============================================
 # -------------------- 10.12 --------------------
@@ -811,11 +852,11 @@ rm hg19.fa.gz
 bowtie2-build --threads 10 hg19.fa hg19_2018
 
 cd /project/NeuralNet/CRC/ChIP-seq/Meissner/
-index="/project/NeuralNet/CRC/ChIP-seq/mapping/bowtie2/hg19_2018"
+index="/project/NeuralNet/CRC/ChIP-seq/mapping/bowtie2/hg19"
 time ls -v *_1.fastq.gz | while read id;
 do
 	name=${id%_*}
-	bowtie2 -q -p 15 -x $index/hg19_2018 -1 $id -2 ${name}_2.fastq.gz \
+	bowtie2 -q -p 15 -x $index/hg19 -1 $id -2 ${name}_2.fastq.gz \
 	-S ${name}.sam \
 	> ${name}.log 2>&1
 done
@@ -827,6 +868,10 @@ do
 done
 rm *.sam
 
+samtools merge -@ 15 Beta*.bam -o Beta_H3K27ac.merged.bam
+rm Beta_H3K27ac.merged.bam
+sambamba sort -t 10 Beta_H3K27ac.merged.bam -o Beta_H3K27ac.bam
+
 # sort
 ls Beta*.bam | while read id;
 do
@@ -835,41 +880,48 @@ done
 rm *.unsorted.bam
 
 # merge
-samtools merge -@ 15 Beta*.bam -o Beta_H3K27ac.bam
+
 samtools index -@ 15 Beta_H3K27ac.bam
 
 
 cd /project/NeuralNet/CRC/ChIP-seq/Meissner/
 time macs2 callpeak -t Beta_H3K27ac.bam --name Beta --bdg -q 0.05 --broad --broad-cutoff 0.05 --outdir ./macs2_DE_narrow.05_broad.05 2>./macs2_DE_narrow.05_broad.05/Beta.log  # 14m14.386s
 
-cd /project/NeuralNet/CRC/ChIP-seq/Meissner/macs2_DE_narrow.05_broad.05/
+cd /project/NeuralNet/CRC/ChIP-seq/Meissner/macs2_Beta_narrow.05_broad.05
 awk 'BEGIN{ FS=OFS="\t" } {print $1,$4,"\t"$2,$3,"\t"$6,"\t"$4}' Beta_peaks.broadPeak > Beta_peaks.broadPeak.gff
 
 ssh gnosiophobie
 cd /project/NeuralNet/CRC/ROSE/ROSE_package
-gff="/project/NeuralNet/CRC/ChIP-seq/Meissner/macs2_DE_narrow.05_broad.05/Beta_peaks.broadPeak.gff"
+gff="/project/NeuralNet/CRC/ChIP-seq/Meissner/macs2_Beta_narrow.05_broad.5/Beta_peaks.broadPeak.gff"
 bam="/project/NeuralNet/CRC/ChIP-seq/Meissner/Beta_H3K27ac.bam"
-outdir="/project/NeuralNet/CRC/ROSE/5.rose_Beta_narrow.05_broad.05_incltss/"
+outdir="/project/NeuralNet/CRC/ROSE/4.rose_Beta_narrow.05_broad.5_incltss/"
 base=$(basename $bam)
 time python2 ROSE_main.py -g HG19 -i $gff -r $bam -o $outdir -s 12500 -t 0 >$outdir/${base%_*}.log &
+mxqsub --group-name="rose_main" --processors=10 --memory=10G --runtime=5h --stdout="$outdir/${base%_*}.log" python2 ROSE_main.py -g HG19_NR -i $gff -r $bam -o $outdir -s 12500 -t 2000 &
+
+sed '1i track name="Beta_ROSE_SE_narrowp.01_broadp.05_exclNRtss" description="Beta SE called by ROSE with --narrow-p=0.01 and --broad-p=0.05, excluding all NR tss" color=255,0,0' ../3.2.rose_Beta_narrowp.01_broadp.05_exclNRtss/Beta_peaks_Gateway_SuperEnhancers.bed > /project/ngsuploads/data/Haas/Jieyi/Beta_SE_narrowp.01_broadp.05_exclNRtss.bed
+awk 'BEGIN{ OFS="\t" } $9==0{ print $2,$3,$4,$1,$8,"." }' ../3.2.rose_Beta_narrowp.01_broadp.05_exclNRtss/Beta_peaks_AllEnhancers.table.txt | sed '1i track name="Beta_ROSE_TE_narrowp.01_broadp.05_exclNRtss" description="Beta TE called by ROSE with --narrow-p=0.01 and --broad-p=0.05, excluding all NR tss" color=128,128,128' > /project/ngsuploads/data/Haas/Jieyi/Beta_TE_narrowp.01_broadp.05_exclNRtss.bed
 
 
+outdir="/project/NeuralNet/CRC/CRCmapper/2.crc_Beta_narrow.05_broad.1_incltss/"
+enhTable="/project/NeuralNet/CRC/ROSE/2.rose_Beta_narrow.05_broad.1_incltss/Beta_peaks_AllEnhancers.table.txt"
+bed="/project/NeuralNet/CRC/ChIP-seq/Meissner/macs2_Beta_narrow.05_broad.1/Beta_peaks.broadPeak"
+bam="/project/NeuralNet/CRC/ChIP-seq/Meissner/Beta_H3K27ac.bam"
+base=$(basename $bam)
+genome="../hg19/"
+time python2 CRCmapper.py -e $enhTable -b $bam -g HG19 -f $genome -s $bed -n Beta -o $outdir > $outdir/${base%_*}.log &
+mxqsub --group-name="crc" --processors=10 --memory=10G --runtime=5h --stdout="$outdir/${base%_*}.log" python2 CRCmapper.py -e $enhTable -b $bam -g HG19 -f $genome -s $bed -n Beta -o $outdir &
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+parameter="Beta_narrow.05_broad.1"
+cutoff=500
+annotation="HG19_NM"
+outdir="/project/NeuralNet/CRC/CRCmapper/2-2.crc_${parameter}_incltss_cutoff${cutoff}/"
+enhTable="/project/NeuralNet/CRC/ROSE/2.rose_${parameter}_incltss/Beta_peaks_AllEnhancers.table.txt"
+bed="/project/NeuralNet/CRC/ChIP-seq/Meissner/macs2_${parameter}/Beta_peaks.broadPeak"
+bam="/project/NeuralNet/CRC/ChIP-seq/Meissner/Beta_H3K27ac.bam"
+base=$(basename $bam)
+genome="../hg19/"
+mxqsub --group-name="crc" --processors=10 --memory=20G --runtime=5h --stdout="$outdir/${base%_*}.log" python2 CRCmapper.py -e $enhTable -b $bam -g $annotation -f $genome -s $bed -n Beta -o $outdir -E $cutoff &
 
 
