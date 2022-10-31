@@ -812,12 +812,21 @@ http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_TE_narrow.05_broad.05_noNMtss.
 http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/GSE140500_DE_SE.byH3K27ac.bed
 http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/GSE140500_DE_TE.byH3K27ac.bed
 
+# signals
 http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_H3K27ac.bw
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_peaks.broadPeak.gff
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_SE_narrow.05_broad.05_refseq.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_TE_narrow.05_broad.05_refseq.bed
+# SE & TE from the paper
 http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/GSE140500_Beta_SE.byH3K27ac.bed
 http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/GSE140500_Beta_TE.byH3K27ac.bed
+# macs2 peaks
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_peaks_narrow.05_broad.1.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_peaks_narrow.05_broad.5.bed
+# SE & TE from recapitulation
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_SE_narrow.05_broad.1_incltss.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_TE_narrow.05_broad.1_incltss.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_SE_narrow.05_broad.5_incltss.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_TE_narrow.05_broad.5_incltss.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/
+
 
 =============================================
 # -------------------- 10.12 --------------------
