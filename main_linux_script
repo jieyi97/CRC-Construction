@@ -441,6 +441,8 @@ mxqkill --group-id
 #    - 2.7 CRCmapper (09.22)
 #    - 2.8 debugging (09.29)
 #    - 2.9 visualization (10.05)
+# 3. CRUP -> ROSE -> CRCmapper
+#	 - 3.1 ROSE
 # -----------------------------------------------
 
 # 2.1 download raw data (only DE, at present)
@@ -901,25 +903,17 @@ awk 'BEGIN{ FS=OFS="\t" } {print $1,$4,"\t"$2,$3,"\t"$6,"\t"$4}' Beta_peaks.broa
 
 ssh gnosiophobie
 cd /project/NeuralNet/CRC/ROSE/ROSE_package
-gff="/project/NeuralNet/CRC/ChIP-seq/Meissner/macs2_Beta_narrow.05_broad.5/Beta_peaks.broadPeak.gff"
+parameter="Beta_narrowp.01_broadp.01"
+outdir="/project/NeuralNet/CRC/ROSE/6.rose_${parameter}_incltss"
+gff="/project/NeuralNet/CRC/ChIP-seq/Meissner/macs2_${parameter}/Beta_peaks.broadPeak.gff"
 bam="/project/NeuralNet/CRC/ChIP-seq/Meissner/Beta_H3K27ac.bam"
-outdir="/project/NeuralNet/CRC/ROSE/4.rose_Beta_narrow.05_broad.5_incltss/"
 base=$(basename $bam)
-time python2 ROSE_main.py -g HG19 -i $gff -r $bam -o $outdir -s 12500 -t 0 >$outdir/${base%_*}.log &
+# time python2 ROSE_main.py -g HG19 -i $gff -r $bam -o $outdir -s 12500 -t 0 >$outdir/${base%_*}.log &
 mxqsub --group-name="rose_main" --processors=10 --memory=10G --runtime=5h --stdout="$outdir/${base%_*}.log" python2 ROSE_main.py -g HG19_NR -i $gff -r $bam -o $outdir -s 12500 -t 2000 &
 
 sed '1i track name="Beta_ROSE_SE_narrowp.01_broadp.05_exclNRtss" description="Beta SE called by ROSE with --narrow-p=0.01 and --broad-p=0.05, excluding all NR tss" color=255,0,0' ../3.2.rose_Beta_narrowp.01_broadp.05_exclNRtss/Beta_peaks_Gateway_SuperEnhancers.bed > /project/ngsuploads/data/Haas/Jieyi/Beta_SE_narrowp.01_broadp.05_exclNRtss.bed
 awk 'BEGIN{ OFS="\t" } $9==0{ print $2,$3,$4,$1,$8,"." }' ../3.2.rose_Beta_narrowp.01_broadp.05_exclNRtss/Beta_peaks_AllEnhancers.table.txt | sed '1i track name="Beta_ROSE_TE_narrowp.01_broadp.05_exclNRtss" description="Beta TE called by ROSE with --narrow-p=0.01 and --broad-p=0.05, excluding all NR tss" color=128,128,128' > /project/ngsuploads/data/Haas/Jieyi/Beta_TE_narrowp.01_broadp.05_exclNRtss.bed
-
-
-outdir="/project/NeuralNet/CRC/CRCmapper/2.crc_Beta_narrow.05_broad.1_incltss/"
-enhTable="/project/NeuralNet/CRC/ROSE/2.rose_Beta_narrow.05_broad.1_incltss/Beta_peaks_AllEnhancers.table.txt"
-bed="/project/NeuralNet/CRC/ChIP-seq/Meissner/macs2_Beta_narrow.05_broad.1/Beta_peaks.broadPeak"
-bam="/project/NeuralNet/CRC/ChIP-seq/Meissner/Beta_H3K27ac.bam"
-base=$(basename $bam)
-genome="../hg19/"
-time python2 CRCmapper.py -e $enhTable -b $bam -g HG19 -f $genome -s $bed -n Beta -o $outdir > $outdir/${base%_*}.log &
-mxqsub --group-name="crc" --processors=10 --memory=10G --runtime=5h --stdout="$outdir/${base%_*}.log" python2 CRCmapper.py -e $enhTable -b $bam -g HG19 -f $genome -s $bed -n Beta -o $outdir &
+chmod a+r /project/ngsuploads/data/Haas/Jieyi/*
 
 
 parameter="Beta_narrow.05_broad.1"
@@ -931,6 +925,109 @@ bed="/project/NeuralNet/CRC/ChIP-seq/Meissner/macs2_${parameter}/Beta_peaks.broa
 bam="/project/NeuralNet/CRC/ChIP-seq/Meissner/Beta_H3K27ac.bam"
 base=$(basename $bam)
 genome="../hg19/"
-mxqsub --group-name="crc" --processors=10 --memory=20G --runtime=5h --stdout="$outdir/${base%_*}.log" python2 CRCmapper.py -e $enhTable -b $bam -g $annotation -f $genome -s $bed -n Beta -o $outdir -E $cutoff &
+mxqsub --group-name="crc" --processors=10 --memory=20G --runtime=5h --stdout="$outdir${base%_*}.log" python2 CRCmapper.py -e $enhTable -b $bam -g $annotation -f $genome -s $bed -n Beta -o $outdir -E $cutoff &
+
+
+
+
+
+# 3. CRUP -> ROSE -> CRCmapper
+# 3.1 ROSE
+## In order to successfully run ROSE, all bam files must have chromosome IDs starting with chr
+## ref: https://josephcckuo.wordpress.com/2016/11/17/modify-chromosome-notation-in-bam-file/
+# modify chr annotations
+cd /project/NeuralNet/CRC/ChIP-seq/mapping/STAR/rmdup_bam
+samtools view -h H3K27ac_HI-32.bam | sed -e '/^@SQ/s/SN\:/SN\:chr/' -e '/^[^@]/s/\t/\tchr/2' | samtools view -bS - > H3K27ac_HI-32.chr.unsorted.bam &
+samtools view -h H3K4me1_HI-32.bam | sed -e '/^@SQ/s/SN\:/SN\:chr/' -e '/^[^@]/s/\t/\tchr/2' | samtools view -bS - > H3K4me1_HI-32.chr.unsorted.bam &
+samtools view -h H3K4me3_HI-32.bam | sed -e '/^@SQ/s/SN\:/SN\:chr/' -e '/^[^@]/s/\t/\tchr/2' | samtools view -bS - > H3K4me3_HI-32.chr.unsorted.bam &
+# sort
+ls *unsorted.bam | while read id;
+do
+	echo $id, ${id%%.*}
+	sambamba sort -t 10 $id -o ${id%%.*}.chr.bam
+	rm $id
+done
+# index
+ls *chr.bam | while read id;
+do
+	echo $id
+	samtools index -@ 10 $id
+done
+# generate gff file
+cd /project/NeuralNet/CRC/crup
+awk 'BEGIN{ FS=OFS="\t" } { print "chr"$1,"CRUP_peak_"NR,"\t"$2,$3,"\t.","\tCRUP_peak_"NR }' islets.HI-32.CRUP.singleEnh.bedGraph > islets.HI-32.CRUP.singleEnh.gff
+# ROSE main
+cd /project/NeuralNet/CRC/ROSE/ROSE_package
+mkdir ../1-1.rose_HI-32_K27ac_incltss
+outdir="/project/NeuralNet/CRC/ROSE/1-1.rose_HI-32_K27ac_incltss/"
+gff="/project/NeuralNet/CRC/crup/islets.HI-32.CRUP.singleEnh.gff"
+bam="/project/NeuralNet/CRC/ChIP-seq/mapping/STAR/rmdup_bam/H3K27ac_HI-32.chr.bam"
+base=$(basename $bam)
+# time python2 ROSE_main.py -g HG19 -i $gff -r $bam -o $outdir -s 12500 -t 0 >$outdir/${base%_*}.log &
+mxqsub --group-name="rose_main" --processors=10 --memory=10G --runtime=5h --stdout="$outdir${base%%.*}.log" python2 ROSE_main.py -g HG19 -i $gff -r $bam -o $outdir -s 12500 -t 0 &
+
+mkdir ../1-2.rose_HI-32_K4me1_incltss
+outdir="/project/NeuralNet/CRC/ROSE/1-2.rose_HI-32_K4me1_incltss/"
+bam="/project/NeuralNet/CRC/ChIP-seq/mapping/STAR/rmdup_bam/H3K4me1_HI-32.chr.bam"
+base=$(basename $bam)
+mxqsub --group-name="rose_main" --processors=10 --memory=10G --runtime=5h --stdout="$outdir${base%%.*}.log" python2 ROSE_main.py -g HG19 -i $gff -r $bam -o $outdir -s 12500 -t 0 &
+
+outdir="/project/NeuralNet/CRC/ROSE/1-3.rose_HI-32_K4me3_incltss/"
+bam="/project/NeuralNet/CRC/ChIP-seq/mapping/STAR/rmdup_bam/H3K4me3_HI-32.chr.bam"
+base=$(basename $bam)
+mxqsub --group-name="rose_main" --processors=10 --memory=10G --runtime=5h --stdout="$outdir${base%%.*}.log" python2 ROSE_main.py -g HG19 -i $gff -r $bam -o $outdir -s 12500 -t 0 &
+
+# CRCmapper
+cd /project/NeuralNet/CRC/CRCmapper/CRCmapper_package
+mkdir ../1-1.crc_HI-32_K27ac_incltss
+mkdir ../1-2.crc_HI-32_K4me1_incltss
+mkdir ../1-3.crc_HI-32_K4me3_incltss
+
+awk 'BEGIN{ FS=OFS="\t" } { print "chr"$1,$2,$3,"CRUP_peak_"NR,$4,"." }' islets.HI-32.CRUP.singleEnh.bedGraph > islets.HI-32.CRUP.singleEnh.bed
+
+parameter="HI-32_K27ac_incltss"
+# cutoff=500
+annotation="HG19_NM"
+outdir="/project/NeuralNet/CRC/CRCmapper/1-1.crc_${parameter}/"
+enhTable="/project/NeuralNet/CRC/ROSE/1-1.rose_${parameter}/islets_AllEnhancers.table.txt"
+bed="/project/NeuralNet/CRC/crup/islets.HI-32.CRUP.singleEnh.bed"
+bam="/project/NeuralNet/CRC/ChIP-seq/mapping/STAR/rmdup_bam/H3K27ac_HI-32.chr.bam"
+base=$(basename $bam)
+genome="../hg19/"
+mxqsub --group-name="crc" --processors=10 --memory=20G --runtime=5h --stdout="$outdir${base%%.*}.log" python2 CRCmapper.py -e $enhTable -b $bam -g $annotation -f $genome -s $bed -n ${base%%.*} -o $outdir &
+
+parameter="HI-32_K4me1_incltss"
+outdir="/project/NeuralNet/CRC/CRCmapper/1-2.crc_${parameter}/"
+enhTable="/project/NeuralNet/CRC/ROSE/1-2.rose_${parameter}/islets_AllEnhancers.table.txt"
+bam="/project/NeuralNet/CRC/ChIP-seq/mapping/STAR/rmdup_bam/H3K4me1_HI-32.chr.bam"
+base=$(basename $bam)
+mxqsub --group-name="crc" --processors=10 --memory=20G --runtime=5h --stdout="$outdir${base%%.*}.log" python2 CRCmapper.py -e $enhTable -b $bam -g $annotation -f $genome -s $bed -n ${base%%.*} -o $outdir &
+
+parameter="HI-32_K4me3_incltss"
+outdir="/project/NeuralNet/CRC/CRCmapper/1-3.crc_${parameter}/"
+enhTable="/project/NeuralNet/CRC/ROSE/1-3.rose_${parameter}/islets_AllEnhancers.table.txt"
+bam="/project/NeuralNet/CRC/ChIP-seq/mapping/STAR/rmdup_bam/H3K4me3_HI-32.chr.bam"
+base=$(basename $bam)
+mxqsub --group-name="crc" --processors=10 --memory=20G --runtime=5h --stdout="$outdir${base%%.*}.log" python2 CRCmapper.py -e $enhTable -b $bam -g $annotation -f $genome -s $bed -n ${base%%.*} -o $outdir &
+
+# visualization
+cd /project/ngsuploads/data/Haas/Jieyi
+# peaks
+sed "1i track name='CRUP_peaks_HI-32' description='islets.HI-32.CRUP.singleEnh.bedGraph'" /project/NeuralNet/CRC/crup/islets.HI-32.CRUP.singleEnh.bed > CRUP_peaks_HI-32.bed
+# SE
+mod="K27ac"
+sed "1i track name='SE_HI-32_${mod}_incltss' description='SE called by ROSE using H3${mod} of sample HI-32, including all tss' color=255,0,0" /project/NeuralNet/CRC/ROSE/1-1.rose_HI-32_${mod}_incltss/islets_Gateway_SuperEnhancers.bed > CRUP_SE_HI-32_${mod}_incltss.bed
+# TE
+awk 'BEGIN{ OFS="\t" } $9==0{ print $2,$3,$4,$1,$8,"." }' /project/NeuralNet/CRC/ROSE/1-1.rose_HI-32_${mod}_incltss/islets_AllEnhancers.table.txt | sed "1i track name='TE_HI-32_${mod}_incltss' description='TE called by ROSE using H3${mod} of sample HI-32, including all tss' color=128,128,128" > CRUP_TE_HI-32_${mod}_incltss.bed
+
+chmod a+r /project/ngsuploads/data/Haas/Jieyi/*
+
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/CRUP_SE_HI-32_K27ac_incltss.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/CRUP_SE_HI-32_K4me1_incltss.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/CRUP_SE_HI-32_K4me3_incltss.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/CRUP_TE_HI-32_K27ac_incltss.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/CRUP_TE_HI-32_K4me1_incltss.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/CRUP_TE_HI-32_K4me3_incltss.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/CRUP_peaks_HI-32.bed
 
 
