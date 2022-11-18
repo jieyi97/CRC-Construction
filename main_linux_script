@@ -888,13 +888,38 @@ ls Beta*.bam | while read id;
 do
 	sambamba sort -t 10 $id -o ${id%%.*}.bam
 done
-rm *.unsorted.bam
 
 # merge
 
 samtools index -@ 15 Beta_H3K27ac.bam
 
+# plot correlation
+multiBamSummary bins -p 10 --smartLabels \
+--bamfiles *merged.bam *32.bam \
+-o readCounts.npz \
+--outRawCounts readCounts.tab
 
+plotCorrelation -in readCounts.npz \
+--corMethod spearman \
+--skipZeros \
+--plotTitle "Spearman Correlation of Read Counts" \
+--whatToPlot heatmap \
+--colorMap RdYlBu \
+--plotNumbers \
+-o SpearmanCorr_readCounts.pdf \
+--outFileCorMatrix SpearmanCorr_readCounts.tab
+
+plotCorrelation -in readCounts.npz \
+--corMethod pearson \
+--skipZeros \
+--plotTitle "pearson Correlation of Read Counts" \
+--whatToPlot heatmap \
+--colorMap RdYlBu \
+--plotNumbers \
+-o PearsonCorr_readCounts.pdf \
+--outFileCorMatrix PearsonCorr_readCounts.tab
+
+# ROSE
 cd /project/NeuralNet/CRC/ChIP-seq/Meissner/
 time macs2 callpeak -t Beta_H3K27ac.bam --name Beta --bdg -q 0.05 --broad --broad-cutoff 0.05 --outdir ./macs2_DE_narrow.05_broad.05 2>./macs2_DE_narrow.05_broad.05/Beta.log  # 14m14.386s
 
