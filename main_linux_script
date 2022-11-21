@@ -822,13 +822,19 @@ http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/GSE140500_Beta_TE.byH3K27ac.bed
 # macs2 peaks
 http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_peaks_narrow.05_broad.1.bed
 http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_peaks_narrow.05_broad.5.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_peaks_narrow.5_broad.5.bed
 # SE & TE from recapitulation
 http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_SE_narrow.05_broad.1_incltss.bed
 http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_TE_narrow.05_broad.1_incltss.bed
 http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_SE_narrow.05_broad.5_incltss.bed
 http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_TE_narrow.05_broad.5_incltss.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_SE_narrow.5_broad.5_incltss.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_TE_narrow.5_broad.5_incltss.bed
+# using p value
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_peaks_narrowp.01_broadp.05.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_SE_narrowp.01_broadp.05_incltss.bed
+http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_TE_narrowp.01_broadp.05_incltss.bed
 http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/
-
 
 =============================================
 # -------------------- 10.12 --------------------
@@ -879,12 +885,8 @@ do
 done
 rm *.sam
 
-samtools merge -@ 15 Beta*.bam -o Beta_H3K27ac.merged.bam
-rm Beta_H3K27ac.merged.bam
-sambamba sort -t 10 Beta_H3K27ac.merged.bam -o Beta_H3K27ac.bam
-
 # sort
-ls Beta*.bam | while read id;
+ls *.unsorted.bam | while read id;
 do
 	sambamba sort -t 10 $id -o ${id%%.*}.bam
 done
@@ -895,29 +897,33 @@ samtools index -@ 15 Beta_H3K27ac.bam
 
 # plot correlation
 multiBamSummary bins -p 10 --smartLabels \
---bamfiles *merged.bam *32.bam \
--o readCounts.npz \
---outRawCounts readCounts.tab
+--bamfiles *rep*.bam \
+-o ./visualization/corr_Beta/readCounts.npz \
+--outRawCounts ./visualization/corr_Beta/readCounts.tab
 
-plotCorrelation -in readCounts.npz \
+plotCorrelation -in ./visualization/corr_Beta/readCounts.npz \
 --corMethod spearman \
 --skipZeros \
 --plotTitle "Spearman Correlation of Read Counts" \
 --whatToPlot heatmap \
 --colorMap RdYlBu \
 --plotNumbers \
--o SpearmanCorr_readCounts.pdf \
---outFileCorMatrix SpearmanCorr_readCounts.tab
+-o ./visualization/corr_Beta/SpearmanCorr_readCounts.pdf \
+--outFileCorMatrix ./visualization/corr_Beta/SpearmanCorr_readCounts.tab
 
-plotCorrelation -in readCounts.npz \
+plotCorrelation -in ./visualization/corr_Beta/readCounts.npz \
 --corMethod pearson \
 --skipZeros \
 --plotTitle "pearson Correlation of Read Counts" \
 --whatToPlot heatmap \
 --colorMap RdYlBu \
 --plotNumbers \
--o PearsonCorr_readCounts.pdf \
---outFileCorMatrix PearsonCorr_readCounts.tab
+-o ./visualization/corr_Beta/PearsonCorr_readCounts.pdf \
+--outFileCorMatrix ./visualization/corr_Beta/PearsonCorr_readCounts.tab
+
+samtools merge -@ 15 Beta*.bam -o Beta_H3K27ac.merged.bam
+rm Beta_H3K27ac.merged.bam
+sambamba sort -t 10 Beta_H3K27ac.merged.bam -o Beta_H3K27ac.bam
 
 # ROSE
 cd /project/NeuralNet/CRC/ChIP-seq/Meissner/
@@ -1034,6 +1040,20 @@ enhTable="/project/NeuralNet/CRC/ROSE/1-3.rose_${parameter}/islets_AllEnhancers.
 bam="/project/NeuralNet/CRC/ChIP-seq/mapping/STAR/rmdup_bam/H3K4me3_HI-32.chr.bam"
 base=$(basename $bam)
 mxqsub --group-name="crc" --processors=10 --memory=20G --runtime=5h --stdout="$outdir${base%%.*}.log" python2 CRCmapper.py -e $enhTable -b $bam -g $annotation -f $genome -s $bed -n ${base%%.*} -o $outdir &
+
+
+## with cutoff
+parameter="HI-32_K27ac_incltss"
+cutoff=500
+annotation="HG19_NM"
+outdir="/project/NeuralNet/CRC/CRCmapper/1-1.crc_${parameter}_cutoff${cutoff}/"
+enhTable="/project/NeuralNet/CRC/ROSE/1-1.rose_${parameter}/islets_AllEnhancers.table.txt"
+bed="/project/NeuralNet/CRC/crup/islets.HI-32.CRUP.singleEnh.bed"
+bam="/project/NeuralNet/CRC/ChIP-seq/mapping/STAR/rmdup_bam/H3K27ac_HI-32.chr.bam"
+base=$(basename $bam)
+genome="../hg19/"
+mxqsub --group-name="crc" --processors=10 --memory=20G --runtime=5h --stdout="$outdir${base%%.*}.log" python2 CRCmapper.py -e $enhTable -b $bam -g $annotation -f $genome -s $bed -n ${base%%.*} -o $outdir -E $cutoff &
+
 
 # visualization
 cd /project/ngsuploads/data/Haas/Jieyi
