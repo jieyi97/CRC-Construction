@@ -992,7 +992,7 @@ cd /project/NeuralNet/CRC/ROSE/ROSE_package
 mkdir ../1-1.rose_HI-32_K27ac_incltss
 outdir="/project/NeuralNet/CRC/ROSE/1-1.rose_HI-32_K27ac_incltss/"
 gff="/project/NeuralNet/CRC/crup/islets.HI-32.CRUP.singleEnh.gff"
-bam="/project/NeuralNet/CRC/ChIP-seq/mapping/STAR/rmdup_bam/H3K27ac_HI-32.chr.bam"
+bam="/project/NeuralNet/CRC/ChIP-seq/mappnig/STAR/rmdup_bam/H3K27ac_HI-32.chr.bam"
 base=$(basename $bam)
 # time python2 ROSE_main.py -g HG19 -i $gff -r $bam -o $outdir -s 12500 -t 0 >$outdir/${base%_*}.log &
 mxqsub --group-name="rose_main" --processors=10 --memory=10G --runtime=5h --stdout="$outdir${base%%.*}.log" python2 ROSE_main.py -g HG19 -i $gff -r $bam -o $outdir -s 12500 -t 0 &
@@ -1074,5 +1074,24 @@ http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/CRUP_TE_HI-32_K27ac_incltss.bed
 http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/CRUP_TE_HI-32_K4me1_incltss.bed
 http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/CRUP_TE_HI-32_K4me3_incltss.bed
 http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/CRUP_peaks_HI-32.bed
+
+
+awk 'BEGIN{ OFS="\t" } NR>6 && $8<=500{ print $2,$3,$4,"SE",$1,$8,"." }' Beta_peaks_AllEnhancers.table.txt > Beta_SE_TE_narrow.05_broad.1_incltss_top500.bed
+awk 'BEGIN{ OFS="\t" } NR>6 && $8>500{ print $2,$3,$4,"TE",$1,$8,"." }' Beta_peaks_AllEnhancers.table.txt >> Beta_SE_TE_narrow.05_broad.1_incltss_top500.bed
+sort -k 1,1 -k 2n,2n Beta_SE_TE_narrow.05_broad.1_incltss_top500.bed -o Beta_SE_TE_narrow.05_broad.1_incltss_top500.bed
+size='/project/NeuralNet/CRC/ChIP-seq/Meissner/hg19.chrom.sizes'
+/project/ngsvin/bin/UCSC_utilities/bedToBigBed -tab -type=bed3+4 Beta_SE_TE_narrow.05_broad.1_incltss_top500.bed ../../ChIP-seq/Meissner/hg19.chrom.sizes /project/ngsuploads/data/Haas/Jieyi/Beta_SE_TE_narrow.05_broad.1_incltss_top500.bb
+
+
+
+# TRAP
+TRAP='/project/ngsvin/bin/TRAP/TRAPv1.04'
+genome='/project/NeuralNet/CRC/ChIP-seq/mapping/bowtie2/hg19/hg19.fa'
+matrix='/project/ngsvin/bin/TRAP/Data/merged_matrices.TFP_2022.2.fa'
+norm='/project/ngsvin/bin/TRAP/Data/hg19.TSSup.TFP_2022.2.GEVparams'
+region='/project/NeuralNet/CRC/TRAP/testRegions_NKX61_MNX1.bed'
+$TRAP -s $genome -region $region -matrix $matrix -norm $norm -name NKX61 -gene > testResults_NKX61_MNX1.bed &
+
+
 
 

@@ -4,6 +4,7 @@ ROSE/
 crup/
 CRCmapper/
 ChIP-seq/
+TRAP/
 
 # ignore zipped files
 .ipynb_checkpoints/
