@@ -5,6 +5,8 @@ crup/
 CRCmapper/
 ChIP-seq/
 TRAP/
+visualization/
+
 
 # ignore zipped files
 .ipynb_checkpoints/
@@ -22,5 +24,6 @@ GSE139817_RAW.tar
 # !ChIP-seq/mapping/STAR/regex_test.ipynb
 # ChIP-seq/mapping/bowtie2/
 # ChIP-seq/crup/
+hg19.GSE63525_GM12878_50K.TopDom_10.bb
 
 

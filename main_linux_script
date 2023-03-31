@@ -1,5 +1,3 @@
-# directory: (base) jieyidi@gnosiophobie:/project/NeuralNet/CRC/ChIP-seq>
-
 # --- STAR mapping ---
 
 # quality control
@@ -26,7 +24,7 @@ do
 	--alignEndsType EndToEnd \
 	--alignIntronMax 1 \
 	--alignSJDBoverhangMin 999 \
-	--outTmpDir /scratch/local2/jieyidi/STAR \
+	--outTmpDir /scratch/local2 \
 	--outSAMtype BAM Unsorted \
 	--outStd BAM_Unsorted \
 	--outSAMmultNmax 1 \
@@ -44,7 +42,7 @@ ${star_version} --runThreadN 10 \
 --alignEndsType EndToEnd \
 --alignIntronMax 1 \
 --alignSJDBoverhangMin 999 \
---outTmpDir /scratch/local2/jieyidi/STAR \
+--outTmpDir /scratch/local2 \
 --outSAMtype BAM Unsorted \
 --outStd BAM_Unsorted \
 --outSAMmultNmax 1 \
@@ -61,7 +59,7 @@ ${star_version} --runThreadN 10 \
 --alignEndsType EndToEnd \
 --alignIntronMax 1 \
 --alignSJDBoverhangMin 999 \
---outTmpDir /scratch/local2/jieyidi/STAR \
+--outTmpDir /scratch/local2 \
 --outSAMtype BAM Unsorted \
 --outStd BAM_Unsorted \
 --outSAMmultNmax 1 \
@@ -97,7 +95,7 @@ do
 done
 
 # remove duplicates
-tmp_dir="/scratch/local2/jieyidi/"
+tmp_dir="/scratch/local2"
 ls ./mapping/STAR/sorted_bam/*.bam | while read id;
 do
 	sambamba markdup -r -t 10 --overflow-list-size 600000 --tmpdir $tmp_dir $id ./mapping/STAR/rmdup_bam/$(basename $id)
@@ -280,7 +278,7 @@ done
 # --- bedTools ---
 # bedTools computing overlapping regions
 ## preparation
-(base) jieyidi@funfair:/project/NeuralNet/CRC/Papers/EnhancerHub_PubMed31253982> cut -f 1 islet_enhancer_hubs.bed | cut -f 1 -d ":" | cut -d "r" -f 2 > a.bed  # chr number
+cut -f 1 islet_enhancer_hubs.bed | cut -f 1 -d ":" | cut -d "r" -f 2 > a.bed  # chr number
 cut -f 1 islet_enhancer_hubs.bed | cut -f 2 -d ":" | cut -d "-" -f 1 | paste -d "\t" a.bed - > b.bed  # start position
 cut -f 1 islet_enhancer_hubs.bed | cut -f 2 -d ":" | cut -d "-" -f 2 | paste -d "\t" b.bed - > c.bed  # end position
 sed "1d" c.bed > islet.enhHubs.bed
@@ -532,6 +530,7 @@ samtools index -@ 10 DE_WCE.bam
 
 samtools flagstat
 
+
 rm *run[0-9].*
 rm *.tab *.npz
 
@@ -723,6 +722,17 @@ time python2 CRCmapper.py -e $enhTable -b $bam -g HG19 -f $genome -s $bed -n DE 
 ## 83m41.680s
 ## real	81m55.766s
 
+
+parameter="DE_narrow.05_broad.05"
+annotation="HG19_NM"
+outdir="/project/NeuralNet/CRC/CRCmapper/5-2.crc_${parameter}_incltss/"
+enhTable="/project/NeuralNet/CRC/ROSE/5.rose_${parameter}_incltss/DE_peaks_AllEnhancers.table.txt"
+bed="/project/NeuralNet/CRC/ChIP-seq/Meissner/macs2_${parameter}/DE_peaks.broadPeak"
+bam="/project/NeuralNet/CRC/ChIP-seq/Meissner/DE_H3K27ac.bam"
+base=$(basename $bam)
+genome="../hg19/"
+mxqsub --group-name="crc" --processors=10 --memory=20G --runtime=5h --stdout="$outdir${base%_*}.log" python2 CRCmapper.py -e $enhTable -b $bam -g $annotation -f $genome -s $bed -n DE -o $outdir &
+
 ls -l results* | grep '^-' | wc -l  # count number
 ls results* | while read id; do (mv $id ./results/${id#results});done
 mkdir ./results/motifs
@@ -796,47 +806,9 @@ bedGraphToBigWig ./macs2_broad/DE_treat_pileup.bdg hg19.chrom.sizes ./visualizat
 ## TE.bed
 cd /project/NeuralNet/CRC/ROSE/5.rose_DE_narrow.05_broad.05_incltss
 awk 'BEGIN{ OFS="\t" } $10==0{ print $2,$3,$4,$1,$9,"." }' DE_peaks_AllEnhancers.table.txt | sort-bed - > DE_peaks_Gateway_TypicalEnhancers.bed
-awk 'BEGIN{ OFS="\t" } $9==0{ print $2,$3,$4,$1,$8,"." }' Beta_peaks_AllEnhancers.table.txt | sort-bed - > Beta_peaks_Gateway_TypicalEnhancers.bed
-cp Beta_peaks_Gateway_TypicalEnhancers.bed /project/ngsuploads/data/Haas/Jieyi/Beta_TE_narrow.05_broad.05.bed
-cp Beta_peaks_Gateway_SuperEnhancers.bed /project/ngsuploads/data/Haas/Jieyi/Beta_TE_narrow.05_broad.05.bed
+awk 'BEGIN{ OFS="\t" } $9==0{ print $2,$3,$4,$1,$8,"." }' Beta_peaks_AllEnhancers.table.txt | sort-bed - 
 
 chmod a+r *
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_H3K27ac.bw
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_WCE.bw
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_SE_narrow.01_broad.01.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_SE_narrow.01_broad.05.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_SE_narrow.05_broad.05.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_TE_narrow.01_broad.01.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_TE_narrow.01_broad.05.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_TE_narrow.05_broad.05.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_SE_narrow.05_broad.05_noNMtss.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/DE_TE_narrow.05_broad.05_noNMtss.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/GSE140500_DE_SE.byH3K27ac.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/GSE140500_DE_TE.byH3K27ac.bed
-
-# signals
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_H3K27ac.bw
-# SE & TE from the paper
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/GSE140500_Beta_SE.byH3K27ac.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/GSE140500_Beta_TE.byH3K27ac.bed
-# macs2 peaks
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_peaks_narrow.05_broad.1.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_peaks_narrow.05_broad.5.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_peaks_narrow.5_broad.5.bed
-# SE & TE from recapitulation
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_SE_narrow.05_broad.1_incltss.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_TE_narrow.05_broad.1_incltss.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_SE_narrow.05_broad.5_incltss.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_TE_narrow.05_broad.5_incltss.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_SE_narrow.5_broad.5_incltss.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_TE_narrow.5_broad.5_incltss.bed
-# using p value
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_peaks_narrowp.01_broadp.05.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_SE_narrowp.01_broadp.05_incltss.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/Beta_TE_narrowp.01_broadp.05_incltss.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/
-
-=============================================
 # -------------------- 10.12 --------------------
 # 1. recapitulation of Meissner's paper (primary beta cell)
 
@@ -922,8 +894,21 @@ plotCorrelation -in ./visualization/corr_Beta/readCounts.npz \
 --outFileCorMatrix ./visualization/corr_Beta/PearsonCorr_readCounts.tab
 
 samtools merge -@ 15 Beta*.bam -o Beta_H3K27ac.merged.bam
-rm Beta_H3K27ac.merged.bam
 sambamba sort -t 10 Beta_H3K27ac.merged.bam -o Beta_H3K27ac.bam
+rm Beta_H3K27ac.merged.bam
+
+# rmdup
+sambamba markdup -r -t 20 Beta_H3K27ac.bam Beta_H3K27ac.rmdup.bam
+
+# read counts before and after rmdup
+samtools flagstat -@ 20 Beta_H3K27ac.bam > Beta_H3K27ac.bam.flagstat
+num=$(sed -n -e 7p Beta_H3K27ac.bam.flagstat | cut -d " " -f 1)
+echo -e "Beta_H3K27ac.bam\t"${num} > readCounts.txt
+
+samtools flagstat -@ 20 Beta_H3K27ac.rmdup.bam > Beta_H3K27ac.rmdup.bam.flagstat
+num=$(sed -n -e 7p Beta_H3K27ac.rmdup.bam.flagstat | cut -d " " -f 1)
+echo -e "Beta_H3K27ac.rmdup.bam\t"${num} >> readCounts.txt
+
 
 # ROSE
 cd /project/NeuralNet/CRC/ChIP-seq/Meissner/
@@ -942,9 +927,6 @@ base=$(basename $bam)
 # time python2 ROSE_main.py -g HG19 -i $gff -r $bam -o $outdir -s 12500 -t 0 >$outdir/${base%_*}.log &
 mxqsub --group-name="rose_main" --processors=10 --memory=10G --runtime=5h --stdout="$outdir/${base%_*}.log" python2 ROSE_main.py -g HG19_NR -i $gff -r $bam -o $outdir -s 12500 -t 2000 &
 
-sed '1i track name="Beta_ROSE_SE_narrowp.01_broadp.05_exclNRtss" description="Beta SE called by ROSE with --narrow-p=0.01 and --broad-p=0.05, excluding all NR tss" color=255,0,0' ../3.2.rose_Beta_narrowp.01_broadp.05_exclNRtss/Beta_peaks_Gateway_SuperEnhancers.bed > /project/ngsuploads/data/Haas/Jieyi/Beta_SE_narrowp.01_broadp.05_exclNRtss.bed
-awk 'BEGIN{ OFS="\t" } $9==0{ print $2,$3,$4,$1,$8,"." }' ../3.2.rose_Beta_narrowp.01_broadp.05_exclNRtss/Beta_peaks_AllEnhancers.table.txt | sed '1i track name="Beta_ROSE_TE_narrowp.01_broadp.05_exclNRtss" description="Beta TE called by ROSE with --narrow-p=0.01 and --broad-p=0.05, excluding all NR tss" color=128,128,128' > /project/ngsuploads/data/Haas/Jieyi/Beta_TE_narrowp.01_broadp.05_exclNRtss.bed
-chmod a+r /project/ngsuploads/data/Haas/Jieyi/*
 
 
 parameter="Beta_narrow.05_broad.1"
@@ -987,12 +969,13 @@ done
 # generate gff file
 cd /project/NeuralNet/CRC/crup
 awk 'BEGIN{ FS=OFS="\t" } { print "chr"$1,"CRUP_peak_"NR,"\t"$2,$3,"\t.","\tCRUP_peak_"NR }' islets.HI-32.CRUP.singleEnh.bedGraph > islets.HI-32.CRUP.singleEnh.gff
+
 # ROSE main
 cd /project/NeuralNet/CRC/ROSE/ROSE_package
 mkdir ../1-1.rose_HI-32_K27ac_incltss
 outdir="/project/NeuralNet/CRC/ROSE/1-1.rose_HI-32_K27ac_incltss/"
 gff="/project/NeuralNet/CRC/crup/islets.HI-32.CRUP.singleEnh.gff"
-bam="/project/NeuralNet/CRC/ChIP-seq/mappnig/STAR/rmdup_bam/H3K27ac_HI-32.chr.bam"
+bam="/project/NeuralNet/CRC/ChIP-seq/mapping/STAR/rmdup_bam/H3K27ac_HI-32.chr.bam"
 base=$(basename $bam)
 # time python2 ROSE_main.py -g HG19 -i $gff -r $bam -o $outdir -s 12500 -t 0 >$outdir/${base%_*}.log &
 mxqsub --group-name="rose_main" --processors=10 --memory=10G --runtime=5h --stdout="$outdir${base%%.*}.log" python2 ROSE_main.py -g HG19 -i $gff -r $bam -o $outdir -s 12500 -t 0 &
@@ -1043,6 +1026,7 @@ mxqsub --group-name="crc" --processors=10 --memory=20G --runtime=5h --stdout="$o
 
 
 ## with cutoff
+## results are not good
 parameter="HI-32_K27ac_incltss"
 cutoff=500
 annotation="HG19_NM"
@@ -1055,8 +1039,12 @@ genome="../hg19/"
 mxqsub --group-name="crc" --processors=10 --memory=20G --runtime=5h --stdout="$outdir${base%%.*}.log" python2 CRCmapper.py -e $enhTable -b $bam -g $annotation -f $genome -s $bed -n ${base%%.*} -o $outdir -E $cutoff &
 
 
+
+
+
+
+
 # visualization
-cd /project/ngsuploads/data/Haas/Jieyi
 # peaks
 sed "1i track name='CRUP_peaks_HI-32' description='islets.HI-32.CRUP.singleEnh.bedGraph'" /project/NeuralNet/CRC/crup/islets.HI-32.CRUP.singleEnh.bed > CRUP_peaks_HI-32.bed
 # SE
@@ -1065,22 +1053,13 @@ sed "1i track name='SE_HI-32_${mod}_incltss' description='SE called by ROSE usin
 # TE
 awk 'BEGIN{ OFS="\t" } $9==0{ print $2,$3,$4,$1,$8,"." }' /project/NeuralNet/CRC/ROSE/1-1.rose_HI-32_${mod}_incltss/islets_AllEnhancers.table.txt | sed "1i track name='TE_HI-32_${mod}_incltss' description='TE called by ROSE using H3${mod} of sample HI-32, including all tss' color=128,128,128" > CRUP_TE_HI-32_${mod}_incltss.bed
 
-chmod a+r /project/ngsuploads/data/Haas/Jieyi/*
-
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/CRUP_SE_HI-32_K27ac_incltss.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/CRUP_SE_HI-32_K4me1_incltss.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/CRUP_SE_HI-32_K4me3_incltss.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/CRUP_TE_HI-32_K27ac_incltss.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/CRUP_TE_HI-32_K4me1_incltss.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/CRUP_TE_HI-32_K4me3_incltss.bed
-http://ngs.molgen.mpg.de/ngsuploads/Haas/Jieyi/CRUP_peaks_HI-32.bed
+chmod a+r *
 
 
 awk 'BEGIN{ OFS="\t" } NR>6 && $8<=500{ print $2,$3,$4,"SE",$1,$8,"." }' Beta_peaks_AllEnhancers.table.txt > Beta_SE_TE_narrow.05_broad.1_incltss_top500.bed
 awk 'BEGIN{ OFS="\t" } NR>6 && $8>500{ print $2,$3,$4,"TE",$1,$8,"." }' Beta_peaks_AllEnhancers.table.txt >> Beta_SE_TE_narrow.05_broad.1_incltss_top500.bed
 sort -k 1,1 -k 2n,2n Beta_SE_TE_narrow.05_broad.1_incltss_top500.bed -o Beta_SE_TE_narrow.05_broad.1_incltss_top500.bed
 size='/project/NeuralNet/CRC/ChIP-seq/Meissner/hg19.chrom.sizes'
-/project/ngsvin/bin/UCSC_utilities/bedToBigBed -tab -type=bed3+4 Beta_SE_TE_narrow.05_broad.1_incltss_top500.bed ../../ChIP-seq/Meissner/hg19.chrom.sizes /project/ngsuploads/data/Haas/Jieyi/Beta_SE_TE_narrow.05_broad.1_incltss_top500.bb
 
 
 
@@ -1089,9 +1068,42 @@ TRAP='/project/ngsvin/bin/TRAP/TRAPv1.04'
 genome='/project/NeuralNet/CRC/ChIP-seq/mapping/bowtie2/hg19/hg19.fa'
 matrix='/project/ngsvin/bin/TRAP/Data/merged_matrices.TFP_2022.2.fa'
 norm='/project/ngsvin/bin/TRAP/Data/hg19.TSSup.TFP_2022.2.GEVparams'
-region='/project/NeuralNet/CRC/TRAP/testRegions_NKX61_MNX1.bed'
-$TRAP -s $genome -region $region -matrix $matrix -norm $norm -name NKX61 -gene > testResults_NKX61_MNX1.bed &
+region='/project/NeuralNet/CRC/TRAP/testRegions_exPeaks_NKX61_MNX1.bed'
+$TRAP -s $genome -matrix $matrix -norm $norm -gene -region $region -name NKX61,MNX1 > testResults_exPeaks_NKX61_MNX1.bed &
+$TRAP -s $genome -matrix $matrix -norm $norm -gene -region $region > ./CRUP_HI-32_singleEnh_cutoff.99_TAD_ext0/TRAPresult_CRUP_HI-32_ERcutoff.99_TAD_ext0.bed &
 
 
+# intermediate step: macs2 (HI-32) -> ROSE -> CRCmapper
+## macs2
+cd /project/NeuralNet/CRC/ChIP-seq/Meissner/
+mkdir macs2_HI-32_K27ac_narrow.05_broad.05v
+time macs2 callpeak -t ../mapping/STAR/rmdup_bam/H3K27ac_HI-32.chr.bam --name H3K27ac_HI-32  -q 0.05 --broad --broad-cutoff 0.05 --outdir ./macs2_HI-32_K27ac_narrow.05_broad.05/ 2>./macs2_HI-32_K27ac_narrow.05_broad.05/H3K27ac_HI-32.log
 
+## ROSE
+### generate gff file
+cd macs2_HI-32_K27ac_narrow.05_broad.05/
+awk 'BEGIN{ FS=OFS="\t" } {print $1,$4,"\t"$2,$3,"\t"$6,"\t"$4}' H3K27ac_HI-32_peaks.broadPeak > H3K27ac_HI-32_peaks.broadPeak.gff
+### ROSE main
+cd /project/NeuralNet/CRC/ROSE/ROSE_package
+mkdir ../2-1.rose_macs2_HI-32_K27ac_narrow.05_broad.05_incltss
+outdir='/project/NeuralNet/CRC/ROSE/2-1.rose_macs2_HI-32_K27ac_incltss/'
+gff='/project/NeuralNet/CRC/ChIP-seq/Meissner/macs2_H3K27ac_HI-32_narrow.05_broad.05/H3K27ac_HI-32_peaks.broadPeak.gff'
+bam='/project/NeuralNet/CRC/ChIP-seq/mappnig/STAR/rmdup_bam/H3K27ac_HI-32.chr.bam'
+base='H3K27ac_HI-32'
+mxqsub --group-name="rose_main" --processors=10 --memory=10G --runtime=5h --stdout="$outdir${base%%.*}.log" python2 ROSE_main.py -g HG19 -i $gff -r $bam -o $outdir -s 12500 -t 0 &
 
+## CRC
+parameter="macs2_HI-32_K27ac_narrow.05_broad.05_incltss"
+cutoff=500
+extension=0
+annotation="HG19_NM"
+outdir="/project/NeuralNet/CRC/CRCmapper/2-1.crc_${parameter}_cutoff${cutoff}_ext${extension}/"
+enhTable="/project/NeuralNet/CRC/ROSE/2-1.rose_${parameter}/H3K27ac_HI-32_peaks_AllEnhancers.table.txt"
+bed="/project/NeuralNet/CRC/ChIP-seq/Meissner/${parameter%_*}/H3K27ac_HI-32_peaks.broadPeak"
+bam="/project/NeuralNet/CRC/ChIP-seq/mapping/STAR/rmdup_bam/H3K27ac_HI-32.chr.bam"
+base=$(basename $bam)
+genome="../hg19/"
+mxqsub --group-name="crc" --processors=10 --memory=20G --runtime=5h --stdout="$outdir${base%%.*}.log" python2 CRCmapper.py -e $enhTable -b $bam -g $annotation -f $genome -s $bed -n ${base%%.*} -o $outdir -E $cutoff -l $extension &
+
+2-1.crc_macs2_HI-32_K27ac_narrow.05_broad.05_incltss_cutoff500_ext0
+bam="/project/NeuralNet/CRC/ChIP-seq/Meissner/Beta_H3K27ac.bam"
